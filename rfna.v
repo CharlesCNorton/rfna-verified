@@ -13,7 +13,7 @@
 (*      problem. It is hypergolic with every known fuel."                     *)
 (*                                              - John D. Clark, 1972         *)
 (*                                                Ignition!                   *)
-(*                                                                            *)
+(*                                                                            *)                    
 (******************************************************************************)
 
 Require Import Coq.Arith.Arith.
@@ -265,6 +265,7 @@ Module Formula.
   Definition HNO3 : t := mkFormula 1 0 1 3.
   Definition C2H8N2 : t := mkFormula 8 2 2 0.   (* UDMH *)
   Definition C6H7N : t := mkFormula 7 6 1 0.   (* Aniline *)
+  Definition C5H6O2 : t := mkFormula 6 5 0 2.  (* Furfuryl alcohol *)
   Definition N2 : t := mkFormula 0 0 2 0.
   Definition CO2 : t := mkFormula 0 1 0 2.
   Definition H2O : t := mkFormula 2 0 0 1.
@@ -276,6 +277,9 @@ Module Formula.
   Proof. reflexivity. Qed.
 
   Lemma C6H7N_mass : molar_mass C6H7N = Units.mkMass 93129.
+  Proof. reflexivity. Qed.
+
+  Lemma C5H6O2_mass : molar_mass C5H6O2 = Units.mkMass 98101.
   Proof. reflexivity. Qed.
 
   Lemma N2_mass : molar_mass N2 = Units.mkMass 28014.
@@ -347,6 +351,12 @@ Module Species.
     Phase.Liquid
     (Units.mkEnergy 3130000).
 
+  (* Furfuryl alcohol: C5H6O2, Hf = -276.2 kJ/mol liquid (NIST) *)
+  Definition furfuryl_liquid : t := mkSpecies
+    Formula.C5H6O2
+    Phase.Liquid
+    (Units.mkEnergy (-27620000)).
+
   Lemma HNO3_Hf_value : Units.energy_cJ_per_mol (Hf HNO3_liquid) = -17410000.
   Proof. reflexivity. Qed.
 
@@ -354,6 +364,9 @@ Module Species.
   Proof. reflexivity. Qed.
 
   Lemma aniline_Hf_value : Units.energy_cJ_per_mol (Hf aniline_liquid) = 3130000.
+  Proof. reflexivity. Qed.
+
+  Lemma furfuryl_Hf_value : Units.energy_cJ_per_mol (Hf furfuryl_liquid) = -27620000.
   Proof. reflexivity. Qed.
 
   Lemma N2_Hf_value : Units.energy_cJ_per_mol (Hf N2_gas) = 0.
@@ -386,9 +399,35 @@ Module Species.
     - right. intros H. injection H. intros. subst. apply Ef. reflexivity.
   Defined.
 
+  Lemma eqb_eq : forall s1 s2 : t, eqb s1 s2 = true <-> s1 = s2.
+  Proof.
+    intros s1 s2. split.
+    - intros H. destruct (eq_dec s1 s2) as [E|E].
+      + exact E.
+      + exfalso. unfold eqb in H.
+        repeat rewrite andb_true_iff in H.
+        destruct H as [[Hf Hp] Hh].
+        apply Formula.eqb_eq in Hf.
+        apply Phase.eqb_eq in Hp.
+        apply Z.eqb_eq in Hh.
+        destruct s1 as [f1 p1 h1], s2 as [f2 p2 h2]. simpl in *.
+        subst. destruct h1, h2. simpl in Hh. subst.
+        apply E. reflexivity.
+    - intros H. subst. unfold eqb.
+      repeat rewrite andb_true_iff.
+      split; [split|].
+      + apply Formula.eqb_eq. reflexivity.
+      + apply Phase.eqb_eq. reflexivity.
+      + apply Z.eqb_eq. reflexivity.
+  Qed.
+
+  Lemma eqb_refl : forall s, eqb s s = true.
+  Proof. intros. apply eqb_eq. reflexivity. Qed.
+
   (* Finite enumeration of all defined species *)
   Definition all : list t :=
-    [ HNO3_liquid; UDMH_liquid; aniline_liquid; N2_gas; CO2_gas; H2O_gas; H2O_liquid ].
+    [ HNO3_liquid; UDMH_liquid; aniline_liquid; furfuryl_liquid;
+      N2_gas; CO2_gas; H2O_gas; H2O_liquid ].
 
   Lemma all_NoDup : NoDup all.
   Proof.
@@ -419,6 +458,10 @@ Module Species.
 
   Definition aniline_properties : liquid_properties := mkLiquidProps
     1022 45700 (Some 34900) (Some 77000).
+
+  (* Furfuryl alcohol: density 1.13 g/mL, bp 170°C, fp 75°C, autoignition 491°C *)
+  Definition furfuryl_properties : liquid_properties := mkLiquidProps
+    1130 44300 (Some 34800) (Some 76400).
 
   Definition volume_uL (props : liquid_properties) (mass_mg : Z) : Z :=
     if density_mg_mL props =? 0 then 0
@@ -470,6 +513,15 @@ Module Reaction.
   Definition side_element_count (side : list term) (e : Element.t) : nat :=
     fold_left (fun acc tm => (acc + coef tm * Species.element_count (species tm) e)%nat) side O.
 
+  (* Helper for fold_left with nat addition *)
+  Lemma fold_left_nat_add_acc : forall (A : Type) (f : A -> nat) (l : list A) (acc : nat),
+    fold_left (fun a x => (a + f x)%nat) l acc = (acc + fold_left (fun a x => (a + f x)%nat) l O)%nat.
+  Proof.
+    intros A f l. induction l as [|x xs IH]; intros acc.
+    - simpl. lia.
+    - simpl. rewrite IH. rewrite (IH (f x)). lia.
+  Qed.
+
   Definition side_Hf (side : list term) : Units.Energy :=
     fold_left
       (fun acc tm => Units.energy_add acc (Units.energy_scale (Z.of_nat (coef tm)) (Species.Hf (species tm))))
@@ -516,6 +568,11 @@ Module Reaction.
   Definition RFNA_aniline_gas : t := mkReaction
     [ mkTerm 31 Species.HNO3_liquid ; mkTerm 5 Species.aniline_liquid ]
     [ mkTerm 18 Species.N2_gas ; mkTerm 30 Species.CO2_gas ; mkTerm 33 Species.H2O_gas ].
+
+  (* RFNA + Furfuryl alcohol: 44 HNO3 + 10 C5H6O2 -> 22 N2 + 50 CO2 + 52 H2O *)
+  Definition RFNA_furfuryl_gas : t := mkReaction
+    [ mkTerm 44 Species.HNO3_liquid ; mkTerm 10 Species.furfuryl_liquid ]
+    [ mkTerm 22 Species.N2_gas ; mkTerm 50 Species.CO2_gas ; mkTerm 52 Species.H2O_gas ].
 
   Lemma RFNA_UDMH_gas_reactants_H :
     side_element_count (reactants RFNA_UDMH_gas) Element.H = 56%nat.
@@ -617,6 +674,24 @@ Module Reaction.
   Theorem RFNA_aniline_gas_exothermic : exothermic RFNA_aniline_gas.
   Proof. unfold exothermic. reflexivity. Qed.
 
+  Lemma RFNA_aniline_gas_delta_H_value :
+    Units.energy_cJ_per_mol (delta_H RFNA_aniline_gas) = -1454509000.
+  Proof. reflexivity. Qed.
+
+  (* RFNA/Furfuryl reaction theorems *)
+  Theorem RFNA_furfuryl_gas_balanced : balanced RFNA_furfuryl_gas.
+  Proof. unfold balanced. intros []; reflexivity. Qed.
+
+  Theorem RFNA_furfuryl_gas_balancedb : balancedb RFNA_furfuryl_gas = true.
+  Proof. reflexivity. Qed.
+
+  Theorem RFNA_furfuryl_gas_exothermic : exothermic RFNA_furfuryl_gas.
+  Proof. unfold exothermic. reflexivity. Qed.
+
+  Lemma RFNA_furfuryl_gas_delta_H_value :
+    Units.energy_cJ_per_mol (delta_H RFNA_furfuryl_gas) = -2182826000.
+  Proof. reflexivity. Qed.
+
   (** Mixture ratios: O/F and equivalence ratio φ *)
 
   Record mixture_ratio := mkMixture {
@@ -686,6 +761,18 @@ Module Reaction.
       Species.HNO3_properties Species.UDMH_properties = 1046731.
   Proof. reflexivity. Qed.
 
+  (* Stoichiometric RFNA/Aniline: 31*63012 mg / 5*93129 mg = 4.194 *)
+  Definition RFNA_aniline_stoich_mixture : mixture_ratio := mkMixture 1953372 465645.
+
+  Lemma RFNA_aniline_stoich_OF : OF_ratio_x1000 RFNA_aniline_stoich_mixture = 4194.
+  Proof. reflexivity. Qed.
+
+  (* Stoichiometric RFNA/Furfuryl: 44*63012 mg / 10*98101 mg = 2.825 *)
+  Definition RFNA_furfuryl_stoich_mixture : mixture_ratio := mkMixture 2772528 981010.
+
+  Lemma RFNA_furfuryl_stoich_OF : OF_ratio_x1000 RFNA_furfuryl_stoich_mixture = 2826.
+  Proof. reflexivity. Qed.
+
 End Reaction.
 
 (******************************************************************************)
@@ -715,6 +802,20 @@ Module Hypergolic.
     Hypergolic
     (Some 5).
 
+  (* Aniline: hypergolic with RFNA, ~10-20ms delay *)
+  Definition RFNA_aniline_pair : propellant_pair := mkPair
+    Species.HNO3_liquid
+    Species.aniline_liquid
+    Hypergolic
+    (Some 15).
+
+  (* Furfuryl alcohol: hypergolic with RFNA, ~5-15ms delay *)
+  Definition RFNA_furfuryl_pair : propellant_pair := mkPair
+    Species.HNO3_liquid
+    Species.furfuryl_liquid
+    Hypergolic
+    (Some 10).
+
   Definition is_hypergolic (p : propellant_pair) : bool :=
     match ignition p with
     | Hypergolic => true
@@ -733,29 +834,71 @@ Module Hypergolic.
   Lemma RFNA_UDMH_fast_ignition : ignition_delay_bounded RFNA_UDMH_pair 10.
   Proof. unfold ignition_delay_bounded. simpl. lia. Qed.
 
+  Lemma RFNA_aniline_is_hypergolic : is_hypergolic RFNA_aniline_pair = true.
+  Proof. reflexivity. Qed.
+
+  Lemma RFNA_aniline_fast_ignition : ignition_delay_bounded RFNA_aniline_pair 20.
+  Proof. unfold ignition_delay_bounded. simpl. lia. Qed.
+
+  Lemma RFNA_furfuryl_is_hypergolic : is_hypergolic RFNA_furfuryl_pair = true.
+  Proof. reflexivity. Qed.
+
+  Lemma RFNA_furfuryl_fast_ignition : ignition_delay_bounded RFNA_furfuryl_pair 15.
+  Proof. unfold ignition_delay_bounded. simpl. lia. Qed.
+
+  (* Helper to get nth reactant species *)
+  Definition nth_reactant_species (r : Reaction.t) (n : nat) (default : Species.t) : Species.t :=
+    Reaction.species (nth n (Reaction.reactants r) (Reaction.mkTerm 0 default)).
+
   (* Link propellant pair to reaction *)
   Record propellant_system := mkSystem {
     pair : propellant_pair;
     reaction : Reaction.t;
-    oxidizer_matches : Reaction.species (hd (Reaction.mkTerm 0 (oxidizer pair))
-                         (Reaction.reactants reaction)) = oxidizer pair;
-    fuel_matches : True  (* Simplified - full verification would check all reactants *)
+    oxidizer_matches : nth_reactant_species reaction 0 (oxidizer pair) = oxidizer pair;
+    fuel_matches : nth_reactant_species reaction 1 (fuel pair) = fuel pair
   }.
 
   Definition RFNA_UDMH_system : propellant_system.
   Proof.
-    refine (mkSystem RFNA_UDMH_pair Reaction.RFNA_UDMH_gas _ _).
-    - reflexivity.
-    - exact I.
+    refine (mkSystem RFNA_UDMH_pair Reaction.RFNA_UDMH_gas _ _);
+    reflexivity.
   Defined.
 
-  (* Verify the link *)
-  Lemma system_reaction_exothermic :
+  Definition RFNA_aniline_system : propellant_system.
+  Proof.
+    refine (mkSystem RFNA_aniline_pair Reaction.RFNA_aniline_gas _ _);
+    reflexivity.
+  Defined.
+
+  Definition RFNA_furfuryl_system : propellant_system.
+  Proof.
+    refine (mkSystem RFNA_furfuryl_pair Reaction.RFNA_furfuryl_gas _ _);
+    reflexivity.
+  Defined.
+
+  (* Verify the links *)
+  Lemma RFNA_UDMH_system_exothermic :
     Reaction.exothermic (reaction RFNA_UDMH_system).
   Proof. exact Reaction.RFNA_UDMH_gas_exothermic. Qed.
 
-  Lemma system_is_hypergolic :
+  Lemma RFNA_UDMH_system_hypergolic :
     is_hypergolic (pair RFNA_UDMH_system) = true.
+  Proof. reflexivity. Qed.
+
+  Lemma RFNA_aniline_system_exothermic :
+    Reaction.exothermic (reaction RFNA_aniline_system).
+  Proof. exact Reaction.RFNA_aniline_gas_exothermic. Qed.
+
+  Lemma RFNA_aniline_system_hypergolic :
+    is_hypergolic (pair RFNA_aniline_system) = true.
+  Proof. reflexivity. Qed.
+
+  Lemma RFNA_furfuryl_system_exothermic :
+    Reaction.exothermic (reaction RFNA_furfuryl_system).
+  Proof. exact Reaction.RFNA_furfuryl_gas_exothermic. Qed.
+
+  Lemma RFNA_furfuryl_system_hypergolic :
+    is_hypergolic (pair RFNA_furfuryl_system) = true.
   Proof. reflexivity. Qed.
 
   (** Ignition kinetics via Arrhenius correlation.
@@ -887,6 +1030,158 @@ Module ReactionNetwork.
     forallb (fun tm => species_availableb st (Reaction.species tm) (Z.of_nat (Reaction.coef tm)))
             (Reaction.reactants r).
 
+  (* Aggregate coefficient: total consumption of species s across all terms *)
+  Definition species_total_coef (tms : list Reaction.term) (s : Species.t) : Z :=
+    fold_left (fun acc tm =>
+      if Species.eqb (Reaction.species tm) s
+      then acc + Z.of_nat (Reaction.coef tm)
+      else acc) tms 0.
+
+  (* Strong can_fire: aggregate availability per species *)
+  Definition can_fire_strong (st : state) (r : Reaction.t) : Prop :=
+    forall s : Species.t, get_amount st s >= species_total_coef (Reaction.reactants r) s.
+
+  Definition can_fire_strongb (st : state) (r : Reaction.t) : bool :=
+    forallb (fun s => get_amount st s >=? species_total_coef (Reaction.reactants r) s)
+            Species.all.
+
+  (* A reaction has distinct reactant species if no species appears twice *)
+  Definition distinct_reactant_species (r : Reaction.t) : Prop :=
+    NoDup (map Reaction.species (Reaction.reactants r)).
+
+  Definition distinct_reactant_speciesb (r : Reaction.t) : bool :=
+    let species_list := map Reaction.species (Reaction.reactants r) in
+    forallb (fun s =>
+      Nat.leb (count_occ Species.eq_dec species_list s) 1%nat) species_list.
+
+  (* For distinct species reactions, can_fire implies can_fire_strong *)
+  Lemma species_total_coef_not_in : forall tms s,
+    ~ In s (map Reaction.species tms) ->
+    species_total_coef tms s = 0.
+  Proof.
+    induction tms as [|tm tms IH]; intros s Hnotin.
+    - reflexivity.
+    - simpl in Hnotin. apply Decidable.not_or in Hnotin.
+      destruct Hnotin as [Hneq Hnotin'].
+      unfold species_total_coef. simpl.
+      destruct (Species.eqb (Reaction.species tm) s) eqn:Heq.
+      + apply Species.eqb_eq in Heq. contradiction.
+      + fold (species_total_coef tms s). apply IH. exact Hnotin'.
+  Qed.
+
+  (* Helper: fold_left with nonzero accumulator - generalized *)
+  Lemma fold_left_acc_add : forall tms s acc,
+    fold_left (fun a tm =>
+      if Species.eqb (Reaction.species tm) s
+      then a + Z.of_nat (Reaction.coef tm)
+      else a) tms acc =
+    fold_left (fun a tm =>
+      if Species.eqb (Reaction.species tm) s
+      then a + Z.of_nat (Reaction.coef tm)
+      else a) tms 0 + acc.
+  Proof.
+    induction tms as [|tm tms IH]; intros s acc.
+    - simpl. lia.
+    - simpl.
+      destruct (Species.eqb (Reaction.species tm) s) eqn:Heq.
+      + rewrite IH. rewrite (IH s (Z.of_nat (Reaction.coef tm))). lia.
+      + rewrite IH. rewrite (IH s 0). lia.
+  Qed.
+
+  Lemma species_total_coef_acc : forall tms s acc,
+    fold_left (fun a tm =>
+      if Species.eqb (Reaction.species tm) s
+      then a + Z.of_nat (Reaction.coef tm)
+      else a) tms acc = acc + species_total_coef tms s.
+  Proof.
+    intros. rewrite fold_left_acc_add.
+    unfold species_total_coef. lia.
+  Qed.
+
+  Lemma species_total_coef_cons_eq : forall tm tms s,
+    Reaction.species tm = s ->
+    species_total_coef (tm :: tms) s = Z.of_nat (Reaction.coef tm) + species_total_coef tms s.
+  Proof.
+    intros tm tms s Heq.
+    unfold species_total_coef at 1. simpl.
+    rewrite <- Heq. rewrite Species.eqb_refl.
+    rewrite species_total_coef_acc. lia.
+  Qed.
+
+  Lemma species_total_coef_cons_neq : forall tm tms s,
+    Reaction.species tm <> s ->
+    species_total_coef (tm :: tms) s = species_total_coef tms s.
+  Proof.
+    intros tm tms s Hneq.
+    unfold species_total_coef at 1. simpl.
+    destruct (Species.eqb (Reaction.species tm) s) eqn:Heq.
+    - apply Species.eqb_eq in Heq. contradiction.
+    - rewrite species_total_coef_acc. lia.
+  Qed.
+
+  Lemma species_total_coef_single : forall tms tm s,
+    In tm tms ->
+    Reaction.species tm = s ->
+    NoDup (map Reaction.species tms) ->
+    species_total_coef tms s = Z.of_nat (Reaction.coef tm).
+  Proof.
+    induction tms as [|tm' tms IH]; intros tm s Hin Heqs Hnodup.
+    - destruct Hin.
+    - simpl in Hin. destruct Hin as [Heq | Hin'].
+      + subst tm'.
+        rewrite species_total_coef_cons_eq by exact Heqs.
+        inversion Hnodup as [|? ? Hnotin Hnodup'].
+        assert (Hnotin_s : ~ In s (map Reaction.species tms)) by (rewrite <- Heqs; exact Hnotin).
+        rewrite (species_total_coef_not_in tms s Hnotin_s).
+        lia.
+      + inversion Hnodup as [|? ? Hnotin Hnodup'].
+        destruct (Species.eq_dec (Reaction.species tm') s) as [Heq_s | Hneq_s].
+        * exfalso. apply Hnotin. rewrite Heq_s. rewrite <- Heqs.
+          apply in_map. exact Hin'.
+        * rewrite species_total_coef_cons_neq by exact Hneq_s.
+          apply IH; assumption.
+  Qed.
+
+  Lemma distinct_can_fire_implies_strong : forall st r,
+    (forall s, get_amount st s >= 0) ->
+    distinct_reactant_species r ->
+    can_fire st r ->
+    can_fire_strong st r.
+  Proof.
+    intros st r Hnn Hdistinct Hcan s.
+    destruct (in_dec Species.eq_dec s (map Reaction.species (Reaction.reactants r))) as [Hin | Hnotin].
+    - apply in_map_iff in Hin. destruct Hin as [tm [Heqs Hin]].
+      rewrite (species_total_coef_single _ tm s Hin Heqs Hdistinct).
+      unfold can_fire in Hcan. rewrite Forall_forall in Hcan.
+      specialize (Hcan tm Hin). unfold species_available in Hcan.
+      rewrite <- Heqs. exact Hcan.
+    - rewrite species_total_coef_not_in by exact Hnotin.
+      specialize (Hnn s). lia.
+  Qed.
+
+  (* RFNA_UDMH has distinct reactant species *)
+  Lemma RFNA_UDMH_gas_distinct : distinct_reactant_species Reaction.RFNA_UDMH_gas.
+  Proof.
+    unfold distinct_reactant_species, Reaction.RFNA_UDMH_gas. simpl.
+    repeat constructor; simpl; intros H;
+    repeat match goal with
+    | [ H : _ \/ _ |- _ ] => destruct H
+    | [ H : ?x = ?y |- _ ] => try discriminate H
+    | [ H : False |- _ ] => contradiction
+    end.
+  Qed.
+
+  Lemma RFNA_UDMH_liquid_distinct : distinct_reactant_species Reaction.RFNA_UDMH_liquid.
+  Proof.
+    unfold distinct_reactant_species, Reaction.RFNA_UDMH_liquid. simpl.
+    repeat constructor; simpl; intros H;
+    repeat match goal with
+    | [ H : _ \/ _ |- _ ] => destruct H
+    | [ H : ?x = ?y |- _ ] => try discriminate H
+    | [ H : False |- _ ] => contradiction
+    end.
+  Qed.
+
   (* Consume reactants from state *)
   Definition consume_reactants (st : state) (r : Reaction.t) : state :=
     fold_left
@@ -1013,6 +1308,361 @@ Module ReactionNetwork.
   Lemma final_state_temp :
     Units.temp_cK (temperature final_state) = 35149.
   Proof. reflexivity. Qed.
+
+  (* === Preservation of non-negative amounts === *)
+
+  (* Lookup returns 0 for missing keys *)
+  Lemma lookup_default : forall m s,
+    ~ (exists n, In (s, n) m) -> lookup m s = 0.
+  Proof.
+    induction m as [|[s' n'] m' IH]; intros s Hnotin.
+    - reflexivity.
+    - simpl. destruct (Species.eqb s s') eqn:Heq.
+      + exfalso. apply Hnotin. exists n'.
+        left. f_equal. apply Species.eqb_eq in Heq. symmetry. exact Heq.
+      + apply IH. intros [n Hin]. apply Hnotin. exists n. right. exact Hin.
+  Qed.
+
+  (* Update preserves other keys *)
+  Lemma lookup_update_neq : forall m s s' n,
+    Species.eqb s s' = false -> lookup (update m s' n) s = lookup m s.
+  Proof.
+    induction m as [|[s'' n''] m' IH]; intros s s' n Hneq; simpl.
+    - rewrite Hneq. reflexivity.
+    - destruct (Species.eqb s' s'') eqn:Heq'.
+      + simpl. rewrite Hneq.
+        (* s' = s'' by Heq', s ≠ s' by Hneq, so s ≠ s'' *)
+        apply Species.eqb_eq in Heq'. subst.
+        rewrite Hneq. reflexivity.
+      + simpl. destruct (Species.eqb s s'') eqn:Heq''.
+        * reflexivity.
+        * apply IH. exact Hneq.
+  Qed.
+
+  (* Update sets the key *)
+  Lemma lookup_update_eq : forall m s n,
+    lookup (update m s n) s = n.
+  Proof.
+    induction m as [|[s' n'] m' IH]; intros s n; simpl.
+    - rewrite Species.eqb_refl. reflexivity.
+    - destruct (Species.eqb s s') eqn:Heq.
+      + simpl. rewrite Species.eqb_refl. reflexivity.
+      + simpl. rewrite Heq. apply IH.
+  Qed.
+
+  (* get_amount after set_amount *)
+  Lemma get_set_amount_eq : forall st s n,
+    get_amount (set_amount st s n) s = n.
+  Proof.
+    intros st s n. unfold get_amount, set_amount. simpl.
+    apply lookup_update_eq.
+  Qed.
+
+  Lemma get_set_amount_neq : forall st s s' n,
+    Species.eqb s s' = false ->
+    get_amount (set_amount st s' n) s = get_amount st s.
+  Proof.
+    intros st s s' n Hneq. unfold get_amount, set_amount. simpl.
+    apply lookup_update_neq. exact Hneq.
+  Qed.
+
+  (* Adding non-negative preserves non-negativity *)
+  Lemma produce_step_preserves_nonneg : forall st s n,
+    non_negative_amounts st ->
+    n >= 0 ->
+    non_negative_amounts (set_amount st s (get_amount st s + n)).
+  Proof.
+    intros st s n Hnn Hn s'.
+    destruct (Species.eqb s' s) eqn:Heq.
+    - apply Species.eqb_eq in Heq. subst.
+      rewrite get_set_amount_eq. specialize (Hnn s). lia.
+    - rewrite get_set_amount_neq by exact Heq. apply Hnn.
+  Qed.
+
+  (* Subtracting available amount preserves non-negativity *)
+  Lemma consume_step_preserves_nonneg : forall st s n,
+    non_negative_amounts st ->
+    get_amount st s >= n ->
+    n >= 0 ->
+    non_negative_amounts (set_amount st s (get_amount st s - n)).
+  Proof.
+    intros st s n Hnn Havail Hn s'.
+    destruct (Species.eqb s' s) eqn:Heq.
+    - apply Species.eqb_eq in Heq. subst.
+      rewrite get_set_amount_eq. lia.
+    - rewrite get_set_amount_neq by exact Heq. apply Hnn.
+  Qed.
+
+  (* Coefficients are non-negative *)
+  Lemma coef_nonneg : forall tm, Z.of_nat (Reaction.coef tm) >= 0.
+  Proof. intros. lia. Qed.
+
+  (* produce_products preserves non_negative_amounts *)
+  Lemma produce_products_preserves_nonneg : forall st r,
+    non_negative_amounts st ->
+    non_negative_amounts (produce_products st r).
+  Proof.
+    intros st r Hnn.
+    unfold produce_products.
+    generalize dependent st.
+    induction (Reaction.products r) as [|tm tms IH]; intros st Hnn.
+    - exact Hnn.
+    - simpl. apply IH.
+      apply produce_step_preserves_nonneg.
+      + exact Hnn.
+      + apply coef_nonneg.
+  Qed.
+
+  (* For consume, we need a stronger induction hypothesis *)
+  (* The key insight: can_fire ensures all reactants are available *)
+
+  (* Boolean check for non-negative amounts on known species *)
+  Definition check_nonneg_amounts (st : state) : bool :=
+    (get_amount st Species.HNO3_liquid >=? 0) &&
+    (get_amount st Species.UDMH_liquid >=? 0) &&
+    (get_amount st Species.N2_gas >=? 0) &&
+    (get_amount st Species.CO2_gas >=? 0) &&
+    (get_amount st Species.H2O_gas >=? 0) &&
+    (get_amount st Species.H2O_liquid >=? 0) &&
+    (get_amount st Species.aniline_liquid >=? 0).
+
+  (* Simplified: prove for the specific RFNA_UDMH case by computation *)
+  Lemma fire_preserves_nonneg_RFNA_UDMH :
+    non_negative_amounts initial_state ->
+    can_fire initial_state Reaction.RFNA_UDMH_gas ->
+    check_nonneg_amounts final_state = true.
+  Proof. intros _ _. native_compute. reflexivity. Qed.
+
+  (* Helper: Forall inversion *)
+  Lemma Forall_cons_inv : forall A (P : A -> Prop) x xs,
+    Forall P (x :: xs) -> P x /\ Forall P xs.
+  Proof. intros. inversion H. auto. Qed.
+
+  (* consume on a list with DISTINCT species preserves non_negative *)
+  Lemma consume_list_distinct_preserves_nonneg : forall tms st,
+    non_negative_amounts st ->
+    NoDup (map Reaction.species tms) ->
+    Forall (fun tm => species_available st (Reaction.species tm) (Z.of_nat (Reaction.coef tm))) tms ->
+    non_negative_amounts (fold_left
+      (fun acc tm =>
+        let s := Reaction.species tm in
+        let n := Z.of_nat (Reaction.coef tm) in
+        set_amount acc s (get_amount acc s - n)) tms st).
+  Proof.
+    induction tms as [|tm tms IH]; intros st Hnn Hnodup Hforall.
+    - exact Hnn.
+    - simpl.
+      apply Forall_cons_inv in Hforall. destruct Hforall as [Hhead Htail].
+      inversion Hnodup as [|? ? Hnotin Hnodup']. subst.
+      apply IH.
+      + apply consume_step_preserves_nonneg.
+        * exact Hnn.
+        * unfold species_available in Hhead. exact Hhead.
+        * apply coef_nonneg.
+      + exact Hnodup'.
+      + apply Forall_forall. intros tm' Hin.
+        apply Forall_forall with (x := tm') in Htail; [|exact Hin].
+        unfold species_available in *.
+        destruct (Species.eqb (Reaction.species tm') (Reaction.species tm)) eqn:Heq.
+        * exfalso. apply Species.eqb_eq in Heq. apply Hnotin.
+          rewrite <- Heq. apply in_map. exact Hin.
+        * rewrite get_set_amount_neq by exact Heq. exact Htail.
+  Qed.
+
+  (* General theorem for reactions with distinct reactant species *)
+  Theorem fire_preserves_nonneg : forall st r,
+    non_negative_amounts st ->
+    distinct_reactant_species r ->
+    can_fire st r ->
+    non_negative_amounts (fire st r).
+  Proof.
+    intros st r Hnn Hdistinct Hcan.
+    unfold fire.
+    apply produce_products_preserves_nonneg.
+    unfold consume_reactants.
+    apply consume_list_distinct_preserves_nonneg; assumption.
+  Qed.
+
+  (* consume_reactants preserves temperature *)
+  Lemma consume_reactants_temp : forall st r,
+    temperature (consume_reactants st r) = temperature st.
+  Proof.
+    intros st r. unfold consume_reactants.
+    generalize st. clear st. induction (Reaction.reactants r) as [|tm tms IH]; intros st.
+    - reflexivity.
+    - simpl. rewrite IH. unfold set_amount. simpl. reflexivity.
+  Qed.
+
+  (* produce_products preserves temperature *)
+  Lemma produce_products_temp : forall st r,
+    temperature (produce_products st r) = temperature st.
+  Proof.
+    intros st r. unfold produce_products.
+    generalize st. clear st. induction (Reaction.products r) as [|tm tms IH]; intros st.
+    - reflexivity.
+    - simpl. rewrite IH. unfold set_amount. simpl. reflexivity.
+  Qed.
+
+  (* Temperature after fire *)
+  Lemma fire_temperature : forall st r,
+    Units.temp_cK (temperature (fire st r)) =
+    Units.temp_cK (temperature st) + temp_rise r.
+  Proof.
+    intros st r. unfold fire, update_pressure, update_temperature. simpl.
+    rewrite produce_products_temp. rewrite consume_reactants_temp. reflexivity.
+  Qed.
+
+  (* consume_reactants preserves pressure *)
+  Lemma consume_reactants_pressure : forall st r,
+    pressure_kPa (consume_reactants st r) = pressure_kPa st.
+  Proof.
+    intros st r. unfold consume_reactants.
+    generalize st. clear st. induction (Reaction.reactants r) as [|tm tms IH]; intros st.
+    - reflexivity.
+    - simpl. rewrite IH. unfold set_amount. simpl. reflexivity.
+  Qed.
+
+  (* produce_products preserves pressure *)
+  Lemma produce_products_pressure : forall st r,
+    pressure_kPa (produce_products st r) = pressure_kPa st.
+  Proof.
+    intros st r. unfold produce_products.
+    generalize st. clear st. induction (Reaction.products r) as [|tm tms IH]; intros st.
+    - reflexivity.
+    - simpl. rewrite IH. unfold set_amount. simpl. reflexivity.
+  Qed.
+
+  (* Pressure after fire *)
+  Lemma fire_pressure : forall st r,
+    pressure_kPa (fire st r) =
+    pressure_kPa st + pressure_change r (Units.temp_cK (temperature st) + temp_rise r).
+  Proof.
+    intros st r. unfold fire, update_pressure, update_temperature. simpl.
+    rewrite produce_products_pressure. rewrite consume_reactants_pressure.
+    rewrite produce_products_temp. rewrite consume_reactants_temp. reflexivity.
+  Qed.
+
+  (* Helper for positive product moles *)
+  Lemma fold_left_Z_acc : forall (A : Type) (f : A -> Z) (l : list A) (acc : Z),
+    fold_left (fun a x => a + f x) l acc = acc + fold_left (fun a x => a + f x) l 0.
+  Proof.
+    intros A f l. induction l as [|x xs IH]; intros acc.
+    - simpl. lia.
+    - simpl. rewrite IH. rewrite (IH (f x)). lia.
+  Qed.
+
+  (* Concrete temperature rise values verified by computation *)
+  Lemma RFNA_UDMH_temp_rise_computed : temp_rise Reaction.RFNA_UDMH_gas = 5334.
+  Proof. reflexivity. Qed.
+
+  Lemma RFNA_UDMH_temp_rise_nonneg : temp_rise Reaction.RFNA_UDMH_gas >= 0.
+  Proof. rewrite RFNA_UDMH_temp_rise_computed. lia. Qed.
+
+  Lemma RFNA_aniline_temp_rise_computed : temp_rise Reaction.RFNA_aniline_gas = 5985.
+  Proof. reflexivity. Qed.
+
+  Lemma RFNA_aniline_temp_rise_nonneg : temp_rise Reaction.RFNA_aniline_gas >= 0.
+  Proof. rewrite RFNA_aniline_temp_rise_computed. lia. Qed.
+
+  Lemma RFNA_furfuryl_temp_rise_computed : temp_rise Reaction.RFNA_furfuryl_gas = 5867.
+  Proof. reflexivity. Qed.
+
+  Lemma RFNA_furfuryl_temp_rise_nonneg : temp_rise Reaction.RFNA_furfuryl_gas >= 0.
+  Proof. rewrite RFNA_furfuryl_temp_rise_computed. lia. Qed.
+
+  (* Bounded temperature preservation under bounded reactions *)
+  Definition bounded_temp_rise (r : Reaction.t) (max_rise : Z) : Prop :=
+    temp_rise r <= max_rise.
+
+  Lemma fire_preserves_temp_upper : forall st r max_cK max_rise,
+    Units.temp_cK (temperature st) + max_rise <= max_cK ->
+    bounded_temp_rise r max_rise ->
+    Units.temp_cK (temperature (fire st r)) <= max_cK.
+  Proof.
+    intros st r max_cK max_rise Hbound Hrise.
+    rewrite fire_temperature. unfold bounded_temp_rise in Hrise. lia.
+  Qed.
+
+  (* Safety invariant for single reaction firing *)
+  Definition safe_bounds := (20000, 120000, 10000). (* min_T, max_T, max_P *)
+
+  Definition safely_fireable (st : state) (r : Reaction.t) : Prop :=
+    can_fire st r /\
+    distinct_reactant_species r /\
+    Units.temp_cK (temperature st) + temp_rise r <= 120000 /\
+    pressure_kPa st + pressure_change r (Units.temp_cK (temperature st) + temp_rise r) <= 10000.
+
+  Theorem fire_preserves_safe_temp_upper : forall st r,
+    Units.temp_cK (temperature st) <= 120000 - temp_rise r ->
+    Units.temp_cK (temperature (fire st r)) <= 120000.
+  Proof.
+    intros st r Hbound.
+    rewrite fire_temperature. lia.
+  Qed.
+
+  Theorem fire_preserves_safe_temp_lower : forall st r,
+    temp_rise r >= 0 ->
+    20000 <= Units.temp_cK (temperature st) ->
+    20000 <= Units.temp_cK (temperature (fire st r)).
+  Proof.
+    intros st r Hrise Hbound.
+    rewrite fire_temperature. lia.
+  Qed.
+
+  (* Combined safety preservation theorem *)
+  Theorem fire_preserves_safety : forall st r,
+    non_negative_amounts st ->
+    distinct_reactant_species r ->
+    can_fire st r ->
+    temp_rise r >= 0 ->
+    20000 <= Units.temp_cK (temperature st) ->
+    Units.temp_cK (temperature st) + temp_rise r <= 120000 ->
+    pressure_kPa st + pressure_change r (Units.temp_cK (temperature st) + temp_rise r) <= 10000 ->
+    safe_temperature st 20000 120000 ->
+    safe_pressure st 10000 ->
+    safe_temperature (fire st r) 20000 120000 /\
+    safe_pressure (fire st r) 10000 /\
+    non_negative_amounts (fire st r).
+  Proof.
+    intros st r Hnn Hdistinct Hcan Hrise HtempLo HtempHi Hpress HsafeT HsafeP.
+    split; [|split].
+    - unfold safe_temperature. split.
+      + apply fire_preserves_safe_temp_lower; assumption.
+      + rewrite fire_temperature. lia.
+    - unfold safe_pressure. rewrite fire_pressure. lia.
+    - apply fire_preserves_nonneg; assumption.
+  Qed.
+
+  (* Reachability safety invariant for controlled reactions *)
+  Definition controlled_reactions : list Reaction.t :=
+    [ Reaction.RFNA_UDMH_gas ].
+
+  Lemma RFNA_UDMH_gas_temp_rise_bounded :
+    temp_rise Reaction.RFNA_UDMH_gas = 5334.
+  Proof. reflexivity. Qed.
+
+  (* Safety is preserved under controlled reaction firing from safe initial state *)
+  Theorem controlled_safety_step : forall st r,
+    In r controlled_reactions ->
+    safe st ->
+    safely_fireable st r ->
+    safe (fire st r).
+  Proof.
+    intros st r Hin Hsafe [Hcan [Hdist [HtempBound HpressBound]]].
+    destruct Hsafe as [HsafeT [HsafeP Hnn]].
+    unfold safe. split; [|split].
+    - unfold safe_temperature in *. destruct HsafeT as [HtempLo HtempHi].
+      split.
+      + rewrite fire_temperature.
+        destruct Hin as [Heq | []]; subst.
+        assert (Hrise := RFNA_UDMH_temp_rise_nonneg).
+        lia.
+      + rewrite fire_temperature. lia.
+    - unfold safe_pressure in *. rewrite fire_pressure. lia.
+    - apply fire_preserves_nonneg; [assumption| |assumption].
+      destruct Hin as [Heq | []]; subst.
+      exact RFNA_UDMH_gas_distinct.
+  Qed.
 
 End ReactionNetwork.
 
@@ -1187,6 +1837,117 @@ Module Conservation.
       Z.of_nat (Formula.count_N f) * 14007 +
       Z.of_nat (Formula.count_O f) * 15999.
   Proof. intros []; reflexivity. Qed.
+
+  (* Helper: fold_left with addition is associative in accumulator *)
+  Lemma fold_left_add_acc : forall (A : Type) (f : A -> Z) (l : list A) (acc : Z),
+    fold_left (fun a x => a + f x) l acc = acc + fold_left (fun a x => a + f x) l 0.
+  Proof.
+    intros A f l. induction l as [|x xs IH]; intros acc.
+    - simpl. lia.
+    - simpl. rewrite IH. rewrite (IH (f x)). lia.
+  Qed.
+
+  (* Side element count as Z *)
+  Definition side_element_count_Z (side : list Reaction.term) (e : Element.t) : Z :=
+    fold_left
+      (fun acc tm =>
+        acc + Z.of_nat (Reaction.coef tm) * Z.of_nat (Formula.get (Species.formula (Reaction.species tm)) e))
+      side 0.
+
+  (* Helper for side_element_count fold *)
+  Lemma side_element_count_acc : forall tms acc e,
+    fold_left (fun a tm => (a + Reaction.coef tm * Species.element_count (Reaction.species tm) e)%nat) tms acc =
+    (acc + fold_left (fun a tm => (a + Reaction.coef tm * Species.element_count (Reaction.species tm) e)%nat) tms O)%nat.
+  Proof.
+    intros tms. induction tms as [|tm tms' IH]; intros acc e.
+    - simpl. lia.
+    - simpl. rewrite IH. rewrite (IH (Reaction.coef tm * _)%nat). lia.
+  Qed.
+
+  Lemma side_element_count_cons : forall tm tms e,
+    Reaction.side_element_count (tm :: tms) e =
+      (Reaction.coef tm * Species.element_count (Reaction.species tm) e +
+       Reaction.side_element_count tms e)%nat.
+  Proof.
+    intros tm tms e. unfold Reaction.side_element_count at 1. simpl.
+    rewrite side_element_count_acc. unfold Reaction.side_element_count. reflexivity.
+  Qed.
+
+  (* Helper for side_element_count_Z fold *)
+  Lemma side_element_count_Z_cons : forall tm tms e,
+    side_element_count_Z (tm :: tms) e =
+      Z.of_nat (Reaction.coef tm) * Z.of_nat (Formula.get (Species.formula (Reaction.species tm)) e) +
+      side_element_count_Z tms e.
+  Proof.
+    intros tm tms e. unfold side_element_count_Z at 1. simpl.
+    rewrite fold_left_add_acc. reflexivity.
+  Qed.
+
+  (* Relate Reaction.side_element_count (nat) to side_element_count_Z *)
+  Lemma side_element_count_Z_eq : forall side e,
+    side_element_count_Z side e = Z.of_nat (Reaction.side_element_count side e).
+  Proof.
+    intros side e.
+    induction side as [|tm tms IH].
+    - reflexivity.
+    - rewrite side_element_count_Z_cons.
+      rewrite side_element_count_cons.
+      rewrite IH.
+      rewrite Nat2Z.inj_add.
+      rewrite Nat2Z.inj_mul.
+      unfold Species.element_count. reflexivity.
+  Qed.
+
+  (* Side mass equals sum over elements of (side_element_count * atomic_mass) *)
+  Lemma side_mass_cons : forall tm tms,
+    side_mass (tm :: tms) =
+      Z.of_nat (Reaction.coef tm) * Units.mass_mg_per_mol (Species.molar_mass (Reaction.species tm)) +
+      side_mass tms.
+  Proof.
+    intros tm tms. unfold side_mass at 1. simpl.
+    rewrite fold_left_add_acc. reflexivity.
+  Qed.
+
+  Lemma species_mass_from_formula : forall s,
+    Units.mass_mg_per_mol (Species.molar_mass s) =
+      Z.of_nat (Formula.count_H (Species.formula s)) * 1008 +
+      Z.of_nat (Formula.count_C (Species.formula s)) * 12011 +
+      Z.of_nat (Formula.count_N (Species.formula s)) * 14007 +
+      Z.of_nat (Formula.count_O (Species.formula s)) * 15999.
+  Proof.
+    intros s. unfold Species.molar_mass. rewrite mass_from_elements. reflexivity.
+  Qed.
+
+  Lemma side_mass_from_elements : forall side,
+    side_mass side =
+      side_element_count_Z side Element.H * 1008 +
+      side_element_count_Z side Element.C * 12011 +
+      side_element_count_Z side Element.N * 14007 +
+      side_element_count_Z side Element.O * 15999.
+  Proof.
+    induction side as [|tm tms IH].
+    - reflexivity.
+    - rewrite side_mass_cons.
+      rewrite IH.
+      repeat rewrite side_element_count_Z_cons.
+      rewrite species_mass_from_formula.
+      unfold Formula.get. ring.
+  Qed.
+
+  (* Main theorem: balanced implies mass balance *)
+  Theorem balanced_implies_mass_balance : forall r,
+    Reaction.balanced r -> side_mass (Reaction.reactants r) = side_mass (Reaction.products r).
+  Proof.
+    intros r Hbal.
+    repeat rewrite side_mass_from_elements.
+    unfold Reaction.balanced in Hbal.
+    repeat rewrite side_element_count_Z_eq.
+    rewrite (Hbal Element.H).
+    rewrite (Hbal Element.C).
+    rewrite (Hbal Element.N).
+    rewrite (Hbal Element.O).
+    reflexivity.
+  Qed.
 
 End Conservation.
 
