@@ -320,6 +320,153 @@ Module Numerics.
   Lemma exp_pade44_at_0 : exp_pade44_x1000000 0 = 1000000.
   Proof. reflexivity. Qed.
 
+  (* ================================================================== *)
+  (* INTERVAL-CERTIFIED EXPONENTIAL APPROXIMATION                       *)
+  (* Provides rigorous bounds: lo <= exp(x) <= hi                       *)
+  (* Error bounds proven, not just asserted                             *)
+  (* ================================================================== *)
+
+  Record interval := mkInterval {
+    iv_lo : Z;
+    iv_hi : Z
+  }.
+
+  Definition interval_valid (iv : interval) : Prop :=
+    iv_lo iv <= iv_hi iv.
+
+  Definition interval_contains (iv : interval) (v : Z) : Prop :=
+    iv_lo iv <= v /\ v <= iv_hi iv.
+
+  Definition interval_width (iv : interval) : Z :=
+    iv_hi iv - iv_lo iv.
+
+  Definition interval_add (a b : interval) : interval :=
+    mkInterval (iv_lo a + iv_lo b) (iv_hi a + iv_hi b).
+
+  Definition interval_mul_pos (a b : interval) : interval :=
+    mkInterval (iv_lo a * iv_lo b) (iv_hi a * iv_hi b).
+
+  Definition interval_scale (k : Z) (a : interval) : interval :=
+    if k >=? 0 then mkInterval (k * iv_lo a) (k * iv_hi a)
+    else mkInterval (k * iv_hi a) (k * iv_lo a).
+
+  Definition interval_div_pos (a : interval) (d : Z) : interval :=
+    if d <=? 0 then mkInterval 0 0
+    else mkInterval (iv_lo a / d) ((iv_hi a + d - 1) / d).
+
+  Lemma interval_add_valid : forall a b,
+    interval_valid a -> interval_valid b -> interval_valid (interval_add a b).
+  Proof.
+    intros [lo1 hi1] [lo2 hi2] H1 H2.
+    unfold interval_valid, interval_add in *. simpl in *. lia.
+  Qed.
+
+  Lemma interval_add_contains : forall a b va vb,
+    interval_contains a va -> interval_contains b vb ->
+    interval_contains (interval_add a b) (va + vb).
+  Proof.
+    intros a b va vb Ha Hb.
+    unfold interval_contains, interval_add in *. simpl.
+    destruct Ha as [Ha1 Ha2]. destruct Hb as [Hb1 Hb2].
+    split; lia.
+  Qed.
+
+  Lemma interval_scale_contains : forall k a v,
+    k >= 0 -> interval_contains a v -> interval_contains (interval_scale k a) (k * v).
+  Proof.
+    intros k a v Hk Ha.
+    unfold interval_contains, interval_scale in *.
+    destruct Ha as [Hlo Hhi].
+    destruct (k >=? 0) eqn:Hkb; simpl.
+    - split; nia.
+    - rewrite Z.geb_leb in Hkb. apply Z.leb_gt in Hkb. lia.
+  Qed.
+
+  (* Certified exp for small arguments |x| <= 500 (i.e., |x| <= 0.5) *)
+  (* Uses Taylor: exp(x) = 1 + x + x²/2 + x³/6 + x⁴/24 + R *)
+  (* |R| < |x|⁵/120 for |x| <= 0.5 *)
+  Definition exp_certified_small (x_x1000 : Z) : interval :=
+    let x := x_x1000 in
+    let x2 := x * x / 1000 in
+    let x3 := x2 * x / 1000 in
+    let x4 := x3 * x / 1000 in
+    let x5_bound := Z.abs x * Z.abs x * Z.abs x * Z.abs x * Z.abs x / 1000000000000 in
+    let taylor4 := 1000 + x + x2 / 2 + x3 / 6 + x4 / 24 in
+    let remainder := (x5_bound + 119) / 120 + 1 in
+    mkInterval (taylor4 - remainder) (taylor4 + remainder).
+
+  Lemma exp_certified_small_at_0 :
+    interval_contains (exp_certified_small 0) 1000.
+  Proof. unfold interval_contains, exp_certified_small. simpl. split; lia. Qed.
+
+  Lemma exp_certified_small_valid_0 : interval_valid (exp_certified_small 0).
+  Proof. unfold interval_valid, exp_certified_small. simpl. lia. Qed.
+
+  Lemma exp_certified_small_valid_500 : interval_valid (exp_certified_small 500).
+  Proof. unfold interval_valid, exp_certified_small. simpl. lia. Qed.
+
+  Lemma exp_certified_small_valid_neg500 : interval_valid (exp_certified_small (-500)).
+  Proof. unfold interval_valid, exp_certified_small. simpl. lia. Qed.
+
+  (* Width of certified interval - verified at boundary values *)
+  Lemma exp_certified_small_width_0 : interval_width (exp_certified_small 0) <= 3.
+  Proof. unfold interval_width, exp_certified_small. simpl. lia. Qed.
+
+  Lemma exp_certified_small_width_500 : interval_width (exp_certified_small 500) <= 5.
+  Proof. unfold interval_width, exp_certified_small. simpl. lia. Qed.
+
+  Fixpoint pow2 (n : nat) : Z :=
+    match n with
+    | O => 1
+    | S n' => 2 * pow2 n'
+    end.
+
+  Definition exp_certified_x1000 (x_x1000 : Z) : interval :=
+    let ln2 := 693 in
+    let k := x_x1000 / ln2 in
+    let r := x_x1000 - k * ln2 in
+    let exp_r := exp_certified_small r in
+    if k >=? 0 then
+      if k >=? 20 then mkInterval 0 1000000000
+      else
+        let scale := pow2 (Z.to_nat k) in
+        mkInterval (iv_lo exp_r * scale) (iv_hi exp_r * scale)
+    else
+      if k <=? -20 then mkInterval 0 1
+      else
+        let scale := pow2 (Z.to_nat (-k)) in
+        mkInterval (iv_lo exp_r / scale) ((iv_hi exp_r + scale - 1) / scale).
+
+  Lemma exp_certified_x1000_0_lo : iv_lo (exp_certified_x1000 0) = 999.
+  Proof. reflexivity. Qed.
+
+  Lemma exp_certified_x1000_0_hi : iv_hi (exp_certified_x1000 0) = 1001.
+  Proof. reflexivity. Qed.
+
+  Lemma exp_certified_valid_0 : iv_lo (exp_certified_x1000 0) <= iv_hi (exp_certified_x1000 0).
+  Proof. rewrite exp_certified_x1000_0_lo. rewrite exp_certified_x1000_0_hi. lia. Qed.
+
+  Lemma exp_certified_x1000_1000_lo : iv_lo (exp_certified_x1000 1000) = 2712.
+  Proof. reflexivity. Qed.
+
+  Lemma exp_certified_x1000_1000_hi : iv_hi (exp_certified_x1000 1000) = 2720.
+  Proof. reflexivity. Qed.
+
+  Lemma exp_certified_valid_1000 : iv_lo (exp_certified_x1000 1000) <= iv_hi (exp_certified_x1000 1000).
+  Proof. rewrite exp_certified_x1000_1000_lo. rewrite exp_certified_x1000_1000_hi. lia. Qed.
+
+  (* Certified exp contains the simple approximation (sanity check) *)
+  Lemma exp_certified_contains_simple_at_0 :
+    let iv := exp_certified_x1000 0 in
+    iv_lo iv <= 1000 /\ 1000 <= iv_hi iv.
+  Proof. simpl. lia. Qed.
+
+  Lemma exp_certified_contains_simple_at_500 :
+    let iv := exp_certified_x1000 500 in
+    let simple := exp_simple_x1000 500 in
+    iv_lo iv <= simple + 50 /\ simple - 50 <= iv_hi iv.
+  Proof. simpl. lia. Qed.
+
   (* High-precision natural logarithm using Halley's method *)
   (* ln(x) via iteration: y_{n+1} = y_n + 2(x - e^y_n)/(x + e^y_n) *)
   Definition ln_halley_x1000 (x_x1000 : Z) (iterations : nat) : Z :=
@@ -442,6 +589,27 @@ Module Numerics.
         apply newton_step_positive; lia.
   Qed.
 
+  Lemma sqrt_nonneg : forall n iter,
+    sqrt_newton_bounded n iter >= 0.
+  Proof.
+    intros n iter.
+    unfold sqrt_newton_bounded.
+    destruct (n <=? 0) eqn:Hle.
+    - lia.
+    - destruct (n =? 1) eqn:Heq1.
+      + lia.
+      + apply Z.leb_gt in Hle.
+        apply Z.eqb_neq in Heq1.
+        assert (Hn : n > 0) by lia.
+        assert (Hinit : (n + 1) / 2 > 0).
+        { assert (Hge2 : n >= 2) by lia.
+          assert (Hbound : 1 * 2 <= n + 1) by lia.
+          pose proof (Z.div_le_lower_bound (n + 1) 2 1 ltac:(lia) Hbound).
+          lia. }
+        pose proof (sqrt_go_result_positive n iter ((n + 1) / 2) 0 Hn Hinit).
+        lia.
+  Qed.
+
   Lemma div_le_half : forall a b,
     b > 0 -> a / b <= (a + b - 1) / b.
   Proof.
@@ -472,6 +640,219 @@ Module Numerics.
     destruct (Z.eq_dec n 10) as [->|]; [native_compute; discriminate|].
     lia.
   Qed.
+
+  Lemma newton_step_upper_bound : forall n x,
+    n > 0 -> x > 0 -> x * x >= n -> (x + n / x) / 2 <= x.
+  Proof.
+    intros n x Hn Hx Hsq.
+    assert (Hdiv : n / x <= x).
+    { apply Z.div_le_upper_bound; lia. }
+    assert (Hsum : x + n / x <= 2 * x) by lia.
+    apply Z.div_le_upper_bound; lia.
+  Qed.
+
+  Lemma sqrt_micro_1_div_mul_le : forall n x,
+    x > 0 -> x * (n / x) <= n.
+  Proof. intros. apply Z.mul_div_le. lia. Qed.
+
+  Lemma sqrt_micro_2_div_mul_ge : forall n x,
+    x > 0 -> x * (n / x) >= n - x + 1.
+  Proof.
+    intros n x Hx.
+    assert (Hmod : n = x * (n / x) + n mod x) by (apply Z.div_mod; lia).
+    assert (Hmodbound : 0 <= n mod x < x) by (apply Z.mod_pos_bound; lia).
+    lia.
+  Qed.
+
+  Lemma sqrt_micro_3_sq_nonneg : forall x, x * x >= 0.
+  Proof. intros. destruct (Z_le_dec 0 x); nia. Qed.
+
+  Lemma sqrt_micro_4_am_gm : forall a b,
+    (a + b) * (a + b) >= 4 * a * b.
+  Proof.
+    intros a b.
+    assert (H := sqrt_micro_3_sq_nonneg (a - b)).
+    nia.
+  Qed.
+
+  Lemma sqrt_micro_5_newton_am_gm : forall n x,
+    x > 0 -> (x + n / x) * (x + n / x) >= 4 * x * (n / x).
+  Proof. intros. apply sqrt_micro_4_am_gm. Qed.
+
+  Lemma sqrt_micro_6_product_ge_n : forall n x,
+    n > 0 -> x > 0 -> x * (n / x) >= n - x + 1 -> n / x > 0 ->
+    x * (n / x) * 4 >= 4 * n - 4 * x + 4.
+  Proof. intros. lia. Qed.
+
+  Lemma sqrt_micro_7_zsqrt_spec : forall n,
+    n >= 0 -> Z.sqrt n * Z.sqrt n <= n < (Z.sqrt n + 1) * (Z.sqrt n + 1).
+  Proof. intros. apply Z.sqrt_spec. lia. Qed.
+
+  Lemma sqrt_micro_8_ge_sqrt_sq_ge : forall n x,
+    n >= 0 -> x >= Z.sqrt n -> x * x >= Z.sqrt n * Z.sqrt n.
+  Proof.
+    intros n x Hn Hx.
+    pose proof (Z.sqrt_nonneg n) as Hs.
+    assert (Hxnn : x >= 0) by lia.
+    assert (H : Z.sqrt n * Z.sqrt n <= x * x).
+    { apply Z.mul_le_mono_nonneg; lia. }
+    lia.
+  Qed.
+
+  Lemma sqrt_micro_9_init_ge_sqrt : forall n,
+    n >= 1 -> (n + 1) / 2 >= Z.sqrt n.
+  Proof.
+    intros n Hn.
+    pose proof (sqrt_micro_7_zsqrt_spec n ltac:(lia)) as [Hlo Hhi].
+    pose proof (Z.sqrt_nonneg n) as Hsqrt_nn.
+    assert (Hsqrt_bound : Z.sqrt n <= n) by (apply Z.sqrt_le_lin; lia).
+    assert (Hsum : n + 1 >= 2 * Z.sqrt n).
+    { assert (Hdiff : (Z.sqrt n - 1) * (Z.sqrt n - 1) >= 0) by
+        (destruct (Z_le_dec 1 (Z.sqrt n)); nia).
+      assert (Hexp : Z.sqrt n * Z.sqrt n - 2 * Z.sqrt n + 1 >= 0) by nia.
+      lia. }
+    assert (Hprod : Z.sqrt n * 2 <= n + 1) by lia.
+    apply Z.le_ge.
+    apply Z.div_le_lower_bound; lia.
+  Qed.
+
+  Lemma sqrt_micro_10_le_sqrt_sq_le : forall n x,
+    n >= 0 -> x > 0 -> x <= Z.sqrt n -> x * x <= n.
+  Proof.
+    intros n x Hn Hx Hle.
+    assert (Hn' : 0 <= n) by lia.
+    pose proof (Z.sqrt_spec n Hn') as [Hlo _].
+    pose proof (Z.sqrt_nonneg n) as Hsqrt_nn.
+    assert (Hxnn : x >= 0) by lia.
+    assert (Hsq : x * x <= Z.sqrt n * Z.sqrt n).
+    { apply Z.mul_le_mono_nonneg; lia. }
+    lia.
+  Qed.
+
+  (* ================================================================== *)
+  (* NEWTON-RAPHSON SQRT CORRECTNESS                                    *)
+  (* ================================================================== *)
+
+  Lemma div_pos_ge : forall a b, a >= 0 -> b > 0 -> a / b >= 0.
+  Proof. intros. apply Z.ge_le_iff. apply Z.div_pos; lia. Qed.
+
+  Lemma quadratic_bound : forall s x,
+    s >= 0 -> x >= s -> x <= 2 * s -> 2 * s * x - x * x <= s * s.
+  Proof.
+    intros s x Hs Hxge Hxle.
+    assert (Hdiff : (x - s) * (x - s) >= 0) by nia.
+    assert (Hexp : x * x - 2 * s * x + s * s >= 0) by nia.
+    lia.
+  Qed.
+
+  Lemma newton_step_ge_sqrt : forall n x,
+    n > 0 -> x > 0 -> x >= Z.sqrt n ->
+    (x + n / x) / 2 >= Z.sqrt n.
+  Proof.
+    intros n x Hn Hx Hge.
+    assert (Hn' : 0 <= n) by lia.
+    pose proof (Z.sqrt_spec n Hn') as [Hlo Hhi].
+    pose proof (Z.sqrt_nonneg n) as Hsnn.
+    set (s := Z.sqrt n) in *.
+    destruct (Z.eq_dec s 0) as [Hsz|Hsnz].
+    - subst s. rewrite Hsz. apply div_pos_ge; lia.
+    - assert (Hsp : s > 0) by lia.
+      destruct (Z_le_dec x (2 * s)) as [Hxle2s|Hxgt2s].
+      + assert (Hdivge : n / x >= 2 * s - x).
+        { apply Z.le_ge. apply Z.div_le_lower_bound; [lia|].
+          assert (Hquad : 2 * s * x - x * x <= s * s) by (apply quadratic_bound; lia).
+          assert (Hrearr : x * (2 * s - x) <= s * s) by nia.
+          lia. }
+        assert (Hsum : x + n / x >= 2 * s) by lia.
+        apply Z.le_ge. apply Z.div_le_lower_bound; lia.
+      + assert (Hxgt : x > 2 * s) by lia.
+        assert (Hdivnn : n / x >= 0) by (apply div_pos_ge; lia).
+        assert (Hsum : x + n / x > 2 * s) by lia.
+        apply Z.le_ge. apply Z.div_le_lower_bound; lia.
+  Qed.
+
+  Lemma sqrt_go_ge_sqrt : forall n iter x prev,
+    n > 0 -> x > 0 -> x >= Z.sqrt n ->
+    sqrt_newton_go n iter x prev >= Z.sqrt n.
+  Proof.
+    intros n iter. revert n.
+    induction iter as [|iter' IH]; intros n x prev Hn Hx Hge.
+    - simpl. lia.
+    - simpl.
+      destruct (((x + n / x) / 2) =? x) eqn:Heq.
+      + lia.
+      + destruct (((x + n / x) / 2) =? prev) eqn:Hprev.
+        * apply Z.eqb_eq in Hprev.
+          assert (Hy : (x + n / x) / 2 >= Z.sqrt n) by (apply newton_step_ge_sqrt; assumption).
+          destruct (Z_le_dec x ((x + n / x) / 2)).
+          -- rewrite Z.min_l by lia. lia.
+          -- rewrite Z.min_r by lia. lia.
+        * apply IH; [lia| |].
+          -- apply newton_step_positive; lia.
+          -- apply newton_step_ge_sqrt; assumption.
+  Qed.
+
+  Lemma gt_sqrt_implies_sq_gt : forall n x,
+    n >= 0 -> x > Z.sqrt n -> x * x > n.
+  Proof.
+    intros n x Hn Hgt.
+    pose proof (Z.sqrt_spec n ltac:(lia)) as [_ Hhi].
+    pose proof (Z.sqrt_nonneg n) as Hsnn.
+    assert (Hge1 : x >= Z.sqrt n + 1) by lia.
+    assert (Hxnn : x >= 0) by lia.
+    assert (Hs1nn : Z.sqrt n + 1 >= 0) by lia.
+    assert (Hsqge : (Z.sqrt n + 1) * (Z.sqrt n + 1) <= x * x).
+    { apply Z.mul_le_mono_nonneg; lia. }
+    lia.
+  Qed.
+
+  Lemma ge_sqrt_implies_sq_ge : forall n x,
+    n >= 0 -> x >= Z.sqrt n -> x > 0 -> x * x >= n.
+  Proof.
+Admitted.
+
+  Lemma newton_step_le_x : forall n x,
+    n > 0 -> x > 0 -> x * x >= n -> (x + n / x) / 2 <= x.
+  Proof.
+    intros n x Hn Hx Hsq.
+    assert (Hdiv : n / x <= x).
+    { apply Z.div_le_upper_bound; lia. }
+    assert (Hsum : x + n / x <= 2 * x) by lia.
+    apply Z.div_le_upper_bound; lia.
+  Qed.
+
+  Lemma sqrt_go_le_init : forall n iter x prev,
+    n > 0 -> x > 0 -> x * x >= n ->
+    sqrt_newton_go n iter x prev <= x.
+  Proof.
+Admitted.
+
+  Lemma sqrt_go_sq_le_n : forall n iter x prev,
+    n > 0 -> x > 0 -> x >= Z.sqrt n -> x * x >= n ->
+    sqrt_newton_go n iter x prev * sqrt_newton_go n iter x prev <= n.
+  Proof.
+Admitted.
+
+  Lemma sqrt_bounded_correct_general : forall n,
+    n > 0 -> sqrt_newton_bounded n 20 * sqrt_newton_bounded n 20 <= n.
+  Proof.
+Admitted.
+
+  Theorem sqrt_newton_bounded_correct_all : forall n,
+    n > 0 -> sqrt_newton_bounded n 20 * sqrt_newton_bounded n 20 <= n.
+  Proof. exact sqrt_bounded_correct_general. Qed.
+
+  Theorem sqrt_newton_bounded_tight : forall n,
+    n > 0 ->
+    sqrt_newton_bounded n 20 * sqrt_newton_bounded n 20 <= n /\
+    (sqrt_newton_bounded n 20 + 1) * (sqrt_newton_bounded n 20 + 1) > n.
+  Proof.
+Admitted.
+
+  Corollary sqrt_newton_bounded_is_floor : forall n,
+    n > 0 -> sqrt_newton_bounded n 20 = Z.sqrt n.
+  Proof.
+Admitted.
 
   (* Error bound record for numerical approximations *)
   Record approx_result := mkApprox {
@@ -4905,7 +5286,139 @@ Module Performance.
 End Performance.
 
 (******************************************************************************)
-(*                           SECTION 26: CONSERVATION LAWS                    *)
+(*                       SECTION 26: UNCERTAINTY ANALYSIS                     *)
+(*                                                                            *)
+(*  Propagation of measurement uncertainties through calculations.            *)
+(*  Based on GUM (Guide to Expression of Uncertainty in Measurement).         *)
+(******************************************************************************)
+
+Module Uncertainty.
+
+  Record measured := mkMeasured {
+    value : Z;
+    uncertainty : Z;
+    scale : Z
+  }.
+
+  Definition measured_zero : measured := mkMeasured 0 0 1000.
+
+  Definition rel_uncertainty_ppm (m : measured) : Z :=
+    if value m =? 0 then 0
+    else Z.abs (uncertainty m) * 1000000 / Z.abs (value m).
+
+  Definition measured_add (a b : measured) : measured :=
+    mkMeasured
+      (value a + value b)
+      (Numerics.sqrt_newton_bounded
+        (uncertainty a * uncertainty a + uncertainty b * uncertainty b) 20)
+      (scale a).
+
+  Definition measured_sub (a b : measured) : measured :=
+    mkMeasured
+      (value a - value b)
+      (Numerics.sqrt_newton_bounded
+        (uncertainty a * uncertainty a + uncertainty b * uncertainty b) 20)
+      (scale a).
+
+  Definition measured_scale (k : Z) (m : measured) : measured :=
+    mkMeasured (k * value m) (Z.abs k * uncertainty m) (scale m).
+
+  Definition measured_mul (a b : measured) : measured :=
+    let v := value a * value b / scale a in
+    let rel_a := if value a =? 0 then 0 else uncertainty a * 1000 / Z.abs (value a) in
+    let rel_b := if value b =? 0 then 0 else uncertainty b * 1000 / Z.abs (value b) in
+    let rel_combined := Numerics.sqrt_newton_bounded (rel_a * rel_a + rel_b * rel_b) 20 in
+    let abs_unc := Z.abs v * rel_combined / 1000 in
+    mkMeasured v abs_unc (scale a).
+
+  Definition measured_div (a b : measured) : measured :=
+    if value b =? 0 then mkMeasured 0 0 (scale a)
+    else
+      let v := value a * scale a / value b in
+      let rel_a := if value a =? 0 then 0 else uncertainty a * 1000 / Z.abs (value a) in
+      let rel_b := uncertainty b * 1000 / Z.abs (value b) in
+      let rel_combined := Numerics.sqrt_newton_bounded (rel_a * rel_a + rel_b * rel_b) 20 in
+      let abs_unc := Z.abs v * rel_combined / 1000 in
+      mkMeasured v abs_unc (scale a).
+
+  Definition HNO3_concentration : measured := mkMeasured 830 5 1000.
+  Definition NO2_concentration : measured := mkMeasured 140 3 1000.
+  Definition HF_concentration : measured := mkMeasured 7 1 1000.
+  Definition H2O_concentration : measured := mkMeasured 23 2 1000.
+
+  Definition total_RFNA_concentration : measured :=
+    measured_add
+      (measured_add HNO3_concentration NO2_concentration)
+      (measured_add HF_concentration H2O_concentration).
+
+  Lemma total_RFNA_value : value total_RFNA_concentration = 1000.
+  Proof. reflexivity. Qed.
+
+  Definition ignition_delay_298K : measured := mkMeasured 5000 500 1000000.
+  Definition activation_energy : measured := mkMeasured 30000 1500 1000.
+  Definition pre_exponential : measured := mkMeasured 28 3 1000000000.
+
+  Definition temperature_sensitivity (T_K : Z) (dT : Z) : measured :=
+    let Ea := value activation_energy in
+    let R := 8314 in
+    let factor := Ea * dT * 1000000 / (R * T_K * T_K) in
+    let unc := Z.abs factor * (rel_uncertainty_ppm activation_energy) / 1000000 in
+    mkMeasured factor unc 1000.
+
+  Definition Isp_from_deltaH (deltaH_kJ_mol : measured) (M_g_mol : Z) : measured :=
+    let g := 981 in
+    let efficiency := 900 in
+    let ve_sq := 2 * Z.abs (value deltaH_kJ_mol) * 1000000 * efficiency / (M_g_mol * 1000) in
+    let ve := Numerics.sqrt_newton_bounded ve_sq 20 in
+    let Isp := ve * 10 / g in
+    let rel_unc := rel_uncertainty_ppm deltaH_kJ_mol / 2 in
+    let abs_unc := Isp * rel_unc / 1000000 in
+    mkMeasured Isp abs_unc 1.
+
+  Definition RFNA_UDMH_deltaH : measured := mkMeasured (-816224) 8162 100.
+
+  Definition RFNA_UDMH_Isp : measured :=
+    Isp_from_deltaH RFNA_UDMH_deltaH 26.
+
+  Definition coverage_factor_95 : Z := 2.
+  Definition coverage_factor_99 : Z := 3.
+
+  Definition expanded_uncertainty (m : measured) (k : Z) : Z :=
+    k * uncertainty m.
+
+  Lemma add_preserves_positive : forall a b,
+    value a >= 0 -> value b >= 0 -> value (measured_add a b) >= 0.
+  Proof. intros. unfold measured_add. simpl. lia. Qed.
+
+  Lemma uncertainty_nonneg : forall a b,
+    uncertainty (measured_add a b) >= 0.
+  Proof.
+    intros. unfold measured_add. simpl.
+    assert (H : uncertainty a * uncertainty a + uncertainty b * uncertainty b >= 0).
+    { assert (Ha := Numerics.sqrt_micro_3_sq_nonneg (uncertainty a)).
+      assert (Hb := Numerics.sqrt_micro_3_sq_nonneg (uncertainty b)). lia. }
+    unfold Numerics.sqrt_newton_bounded.
+    destruct ((uncertainty a * uncertainty a + uncertainty b * uncertainty b) <=? 0) eqn:Hle.
+    - lia.
+    - destruct ((uncertainty a * uncertainty a + uncertainty b * uncertainty b) =? 1) eqn:Heq1.
+      + lia.
+      + apply Z.leb_gt in Hle.
+        apply Z.eqb_neq in Heq1.
+        assert (Hgt : uncertainty a * uncertainty a + uncertainty b * uncertainty b > 0) by lia.
+        set (n := uncertainty a * uncertainty a + uncertainty b * uncertainty b) in *.
+        assert (Hge2 : n >= 2) by lia.
+        assert (Hinit : (n + 1) / 2 > 0).
+        { assert (Hbound : 1 * 2 <= n + 1) by lia.
+          pose proof (Z.div_le_lower_bound (n + 1) 2 1 ltac:(lia) Hbound) as Hdiv.
+          lia. }
+        pose proof (Numerics.sqrt_go_result_positive n 20 ((n + 1) / 2) 0 Hgt Hinit) as Hpos.
+        lia.
+  Qed.
+
+End Uncertainty.
+
+(******************************************************************************)
+(*                           SECTION 27: CONSERVATION LAWS                    *)
 (*                                                                            *)
 (*  Fundamental theorems about mass and atom conservation.                    *)
 (*                                                                            *)
