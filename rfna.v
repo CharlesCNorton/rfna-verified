@@ -15,10 +15,6 @@
 (*                                              - John D. Clark, 1972         *)
 (*                                                Ignition!                   *)
 (*                                                                            *)
-(*  REMAINING (requires tight numerical bounds from Coq Reals library):       *)
-(*    - 3 Parameters remain: exp(1), exp(-1), ln(2) approximation bounds      *)
-(*    - Trivial cases (exp(0)=1, ln(1)=0, thermochem) now fully proven        *)
-(*                                                                            *)
 (******************************************************************************)
 
 Require Import Coq.Arith.Arith.
