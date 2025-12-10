@@ -28,6 +28,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.Bool.Bool.
 Require Import Coq.Sorting.Permutation.
 Require Import Coq.Reals.Reals.
+Require Import Interval.Tactic.
 Require Import Coq.micromega.Lra.
 Require Import Lia.
 Import ListNotations.
@@ -7566,9 +7567,23 @@ Module RealCertification.
     rewrite Rabs_R0. lra.
   Qed.
 
-  Parameter exp_x1000_correct_at_1000 : exp_x1000_spec 1000 2718.
-  Parameter exp_x1000_correct_at_neg1000 : exp_x1000_spec (-1000) 368.
-  Parameter ln_x1000_correct_at_2000 : ln_x1000_spec 2000 693.
+  Lemma exp_x1000_correct_at_1000 : exp_x1000_spec 1000 2718.
+  Proof.
+    unfold exp_x1000_spec, IZR_div1000.
+    interval.
+  Qed.
+
+  Lemma exp_x1000_correct_at_neg1000 : exp_x1000_spec (-1000) 368.
+  Proof.
+    unfold exp_x1000_spec, IZR_div1000.
+    interval.
+  Qed.
+  Lemma ln_x1000_correct_at_2000 : ln_x1000_spec 2000 693.
+  Proof.
+    unfold ln_x1000_spec, IZR_div1000.
+    intros _.
+    interval.
+  Qed.
 
   Definition arrhenius_delay_spec (T_cK delay_us : Z) : Prop :=
     let T := IZR T_cK / 100 in
@@ -7578,14 +7593,26 @@ Module RealCertification.
     let A := 1.163e11 in
     tau > 0 /\ Rabs (tau - 1000000 / (A * exp (- Ea / (R * T)))) / tau <= 0.01.
 
-  Parameter arrhenius_298K_within_1pct :
-    arrhenius_delay_spec 29800 5000.
+  Lemma arrhenius_298K_within_1pct : arrhenius_delay_spec 29800 5000.
+  Proof.
+    unfold arrhenius_delay_spec.
+    split; [lra|].
+    interval.
+  Qed.
 
-  Parameter arrhenius_273K_within_1pct :
-    arrhenius_delay_spec 27300 31738.
+  Lemma arrhenius_273K_within_1pct : arrhenius_delay_spec 27300 31738.
+  Proof.
+    unfold arrhenius_delay_spec.
+    split; [lra|].
+    interval.
+  Qed.
 
-  Parameter arrhenius_323K_within_1pct :
-    arrhenius_delay_spec 32300 1049.
+  Lemma arrhenius_323K_within_1pct : arrhenius_delay_spec 32300 1049.
+  Proof.
+    unfold arrhenius_delay_spec.
+    split; [lra|].
+    interval.
+  Qed.
 
   Theorem integer_model_certified :
     exp_x1000_spec 0 1000 /\
