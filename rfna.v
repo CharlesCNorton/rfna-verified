@@ -1033,11 +1033,101 @@ Module Numerics.
     apply Z.div_le_upper_bound; lia.
   Qed.
 
+  Lemma div_sqrt_bounds : forall n,
+    n > 0 -> Z.sqrt n <= n / Z.sqrt n <= Z.sqrt n + 2.
+  Proof.
+    intros n Hn.
+    pose proof (Z.sqrt_spec n ltac:(lia)) as [Hlo Hhi].
+    pose proof (Z.sqrt_nonneg n) as Hsnn.
+    destruct (Z.eq_dec (Z.sqrt n) 0) as [Hsz|Hsnz].
+    - rewrite Hsz. simpl. lia.
+    - split.
+      + apply Z.div_le_lower_bound; lia.
+      + apply Z.div_le_upper_bound; [lia|]. lia.
+  Qed.
+
+  Lemma newton_step_at_sqrt : forall n,
+    n > 0 ->
+    let s := Z.sqrt n in
+    (s + n / s) / 2 = s \/ (s + n / s) / 2 = s + 1.
+  Proof.
+    intros n Hn. simpl.
+    pose proof (div_sqrt_bounds n Hn) as [Hlo Hhi].
+    pose proof (Z.sqrt_nonneg n) as Hsnn.
+    set (s := Z.sqrt n) in *.
+    destruct (Z.eq_dec (n / s) s) as [He|Hne1].
+    - left. rewrite He. rewrite Z.add_diag. rewrite Z.mul_comm. apply Z.div_mul. lia.
+    - destruct (Z.eq_dec (n / s) (s + 1)) as [He|Hne2].
+      + left. rewrite He.
+        replace (s + (s + 1)) with (2 * s + 1) by lia.
+        symmetry. apply Z.div_unique_pos with 1; lia.
+      + right. assert (Heq : n / s = s + 2) by lia.
+        rewrite Heq.
+        replace (s + (s + 2)) with (2 * (s + 1)) by lia.
+        symmetry. apply Z.div_unique_pos with 0; lia.
+  Qed.
+
+  Lemma sqrt_succ_sq_ge : forall n,
+    n >= 0 -> (Z.sqrt n + 1) * (Z.sqrt n + 1) >= n.
+  Proof.
+    intros n Hn.
+    pose proof (Z.sqrt_spec n ltac:(lia)) as [Hlo Hhi]. lia.
+  Qed.
+
   Lemma sqrt_go_le_init : forall n iter x prev,
     n > 0 -> x > 0 -> x * x >= n ->
     sqrt_newton_go n iter x prev <= x.
   Proof.
-Admitted.
+    intros n iter. revert n.
+    induction iter as [iter IH] using lt_wf_ind; intros n x prev Hn Hx Hsq.
+    destruct iter as [|iter'].
+    - simpl. lia.
+    - simpl.
+      set (next := (x + n / x) / 2).
+      destruct (next =? x) eqn:Heq.
+      + lia.
+      + destruct (next =? prev) eqn:Hprev.
+        * assert (Hle : next <= x) by (apply newton_step_le_x; assumption). lia.
+        * assert (Hle : next <= x) by (apply newton_step_le_x; assumption).
+          assert (Hpos : next > 0) by (apply newton_step_positive; assumption).
+          destruct (Z_le_dec n (next * next)) as [Hsq' | Hnosq].
+          -- assert (IHapp := IH iter' ltac:(lia) n next x Hn Hpos (Z.le_ge _ _ Hsq')). lia.
+          -- assert (Hxge : x >= Z.sqrt n).
+             { pose proof (Z.sqrt_spec n ltac:(lia)) as [Hlo _].
+               destruct (Z.le_gt_cases (Z.sqrt n) x); [lia|].
+               assert (x * x <= (Z.sqrt n - 1) * (Z.sqrt n - 1)) by nia.
+               pose proof (Z.sqrt_nonneg n). lia. }
+             assert (Hge : next >= Z.sqrt n) by (apply newton_step_ge_sqrt; lia).
+             assert (Heqs : next = Z.sqrt n).
+             { pose proof (Z.sqrt_spec n ltac:(lia)) as [_ Hhi].
+               pose proof (Z.sqrt_nonneg n) as Hsnn.
+               destruct (Z.eq_dec next (Z.sqrt n)); [assumption|].
+               assert (Hge1 : next >= Z.sqrt n + 1) by lia.
+               assert (Hsqge : (Z.sqrt n + 1) * (Z.sqrt n + 1) <= next * next).
+               { apply Z.mul_le_mono_nonneg; lia. }
+               lia. }
+             assert (Hnext_lt_x : next < x).
+             { apply Z.eqb_neq in Heq. lia. }
+             pose proof (newton_step_at_sqrt n Hn) as Hstep.
+             rewrite <- Heqs in Hstep.
+             destruct Hstep as [Hstep | Hstep].
+             ++ destruct iter' as [|iter''].
+                ** simpl. lia.
+                ** simpl. rewrite Hstep. rewrite Z.eqb_refl. lia.
+             ++ assert (Hpos' : next + 1 > 0) by lia.
+                assert (Hsq' : (next + 1) * (next + 1) >= n).
+                { rewrite Heqs. apply sqrt_succ_sq_ge. lia. }
+                assert (Hle' : next + 1 <= x) by lia.
+                destruct iter' as [|iter''].
+                ** simpl. lia.
+                ** simpl. rewrite Hstep.
+                   assert (Hne : (next + 1 =? next) = false) by (apply Z.eqb_neq; lia).
+                   rewrite Hne.
+                   destruct (next + 1 =? x) eqn:Hchk.
+                   --- lia.
+                   --- assert (IHapp := IH iter'' ltac:(lia) n (next + 1) next Hn Hpos' Hsq').
+                       lia.
+  Qed.
 
   Lemma sqrt_go_sq_le_n : forall n iter x prev,
     n > 0 -> x > 0 -> x >= Z.sqrt n -> x * x >= n ->
