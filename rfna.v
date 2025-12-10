@@ -37,19 +37,141 @@ Local Open Scope Z_scope.
 (******************************************************************************)
 (*                           SECTION 1: UNITS                                 *)
 (*                                                                            *)
-(*  Phantom types for dimensional analysis. All quantities are represented    *)
-(*  as integers with implicit scaling factors to avoid rational arithmetic    *)
-(*  complexity while maintaining precision.                                   *)
+(*  Type-safe dimensional analysis. Each physical quantity has a distinct     *)
+(*  record type with explicit scaling. Conversion functions enforce correct   *)
+(*  unit transformations. All quantities are integers with scaling factors.   *)
+(*                                                                            *)
+(*  Naming convention: Type_scale where scale indicates the unit:             *)
+(*    - Energy_cJ = centijoules (1 J = 100 cJ)                                *)
+(*    - Energy_J = joules                                                     *)
+(*    - Energy_kJ = kilojoules (1 kJ = 1000 J)                                *)
+(*    - Temp_cK = centikelvin (1 K = 100 cK)                                  *)
+(*    - Temp_K = kelvin                                                       *)
+(*    - Pressure_kPa = kilopascals                                            *)
+(*    - Pressure_Pa = pascals                                                 *)
+(*    - Time_us = microseconds                                                *)
+(*    - Time_ms = milliseconds                                                *)
+(*    - HeatCap_cJ_mol_K = cJ/(mol·K)                                         *)
+(*    - HeatCap_J_mol_K = J/(mol·K)                                           *)
 (*                                                                            *)
 (******************************************************************************)
 
 Module Units.
 
-  Record Mass := mkMass { mass_mg_per_mol : Z }.
+  Record Mass_mg := mkMass_mg { mass_mg_val : Z }.
+  Record Mass_g := mkMass_g { mass_g_val : Z }.
+  Record Mass_kg := mkMass_kg { mass_kg_val : Z }.
 
-  Record Energy := mkEnergy { energy_cJ_per_mol : Z }.
+  Record Energy_cJ := mkEnergy_cJ { energy_cJ_val : Z }.
+  Record Energy_J := mkEnergy_J { energy_J_val : Z }.
+  Record Energy_kJ := mkEnergy_kJ { energy_kJ_val : Z }.
+  Record Energy_mJ := mkEnergy_mJ { energy_mJ_val : Z }.
 
-  Record Temperature := mkTemp { temp_cK : Z }.
+  Record Temp_cK := mkTemp_cK { temp_cK_val : Z }.
+  Record Temp_K := mkTemp_K { temp_K_val : Z }.
+
+  Record Pressure_Pa := mkPressure_Pa { pressure_Pa_val : Z }.
+  Record Pressure_kPa := mkPressure_kPa { pressure_kPa_val : Z }.
+  Record Pressure_atm := mkPressure_atm { pressure_atm_val : Z }.
+
+  Record Time_us := mkTime_us { time_us_val : Z }.
+  Record Time_ms := mkTime_ms { time_ms_val : Z }.
+  Record Time_s := mkTime_s { time_s_val : Z }.
+  Record Time_ns := mkTime_ns { time_ns_val : Z }.
+
+  Record HeatCap_cJ_mol_K := mkHeatCap_cJ { heatcap_cJ_val : Z }.
+  Record HeatCap_J_mol_K := mkHeatCap_J { heatcap_J_val : Z }.
+  Record HeatCap_mJ_mol_K := mkHeatCap_mJ { heatcap_mJ_val : Z }.
+
+  Record Length_um := mkLength_um { length_um_val : Z }.
+  Record Length_mm := mkLength_mm { length_mm_val : Z }.
+  Record Length_cm := mkLength_cm { length_cm_val : Z }.
+  Record Length_m := mkLength_m { length_m_val : Z }.
+
+  Record Volume_uL := mkVolume_uL { volume_uL_val : Z }.
+  Record Volume_mL := mkVolume_mL { volume_mL_val : Z }.
+  Record Volume_L := mkVolume_L { volume_L_val : Z }.
+
+  Record Density_kg_m3 := mkDensity_kg_m3 { density_kg_m3_val : Z }.
+  Record Density_g_mL := mkDensity_g_mL { density_g_mL_val : Z }.
+
+  Record Velocity_cm_s := mkVelocity_cm_s { velocity_cm_s_val : Z }.
+  Record Velocity_m_s := mkVelocity_m_s { velocity_m_s_val : Z }.
+
+  Record ActivationEnergy_J_mol := mkEa_J_mol { Ea_J_mol_val : Z }.
+  Record ActivationEnergy_kJ_mol := mkEa_kJ_mol { Ea_kJ_mol_val : Z }.
+
+  Record MolarMass_mg_mol := mkMolarMass_mg { molarmass_mg_val : Z }.
+  Record MolarMass_g_mol := mkMolarMass_g { molarmass_g_val : Z }.
+
+  Record Concentration_x1000 := mkConc_x1000 { conc_x1000_val : Z }.
+
+  Record Ratio_x1000 := mkRatio_x1000 { ratio_x1000_val : Z }.
+  Record Ratio_x100 := mkRatio_x100 { ratio_x100_val : Z }.
+  Record Ratio_ppm := mkRatio_ppm { ratio_ppm_val : Z }.
+
+  Definition cJ_to_J (e : Energy_cJ) : Energy_J := mkEnergy_J (energy_cJ_val e / 100).
+  Definition J_to_cJ (e : Energy_J) : Energy_cJ := mkEnergy_cJ (energy_J_val e * 100).
+  Definition J_to_kJ (e : Energy_J) : Energy_kJ := mkEnergy_kJ (energy_J_val e / 1000).
+  Definition kJ_to_J (e : Energy_kJ) : Energy_J := mkEnergy_J (energy_kJ_val e * 1000).
+  Definition cJ_to_kJ (e : Energy_cJ) : Energy_kJ := mkEnergy_kJ (energy_cJ_val e / 100000).
+  Definition kJ_to_cJ (e : Energy_kJ) : Energy_cJ := mkEnergy_cJ (energy_kJ_val e * 100000).
+  Definition mJ_to_J (e : Energy_mJ) : Energy_J := mkEnergy_J (energy_mJ_val e / 1000).
+  Definition J_to_mJ (e : Energy_J) : Energy_mJ := mkEnergy_mJ (energy_J_val e * 1000).
+
+  Definition cK_to_K (t : Temp_cK) : Temp_K := mkTemp_K (temp_cK_val t / 100).
+  Definition K_to_cK (t : Temp_K) : Temp_cK := mkTemp_cK (temp_K_val t * 100).
+
+  Definition Pa_to_kPa (p : Pressure_Pa) : Pressure_kPa := mkPressure_kPa (pressure_Pa_val p / 1000).
+  Definition kPa_to_Pa (p : Pressure_kPa) : Pressure_Pa := mkPressure_Pa (pressure_kPa_val p * 1000).
+  Definition kPa_to_atm_x1000 (p : Pressure_kPa) : Z := pressure_kPa_val p * 1000 / 101325 * 1000.
+  Definition atm_to_kPa (p : Pressure_atm) : Pressure_kPa := mkPressure_kPa (pressure_atm_val p * 101325 / 1000).
+
+  Definition us_to_ms (t : Time_us) : Time_ms := mkTime_ms (time_us_val t / 1000).
+  Definition ms_to_us (t : Time_ms) : Time_us := mkTime_us (time_ms_val t * 1000).
+  Definition ms_to_s (t : Time_ms) : Time_s := mkTime_s (time_ms_val t / 1000).
+  Definition s_to_ms (t : Time_s) : Time_ms := mkTime_ms (time_s_val t * 1000).
+  Definition s_to_us (t : Time_s) : Time_us := mkTime_us (time_s_val t * 1000000).
+  Definition ns_to_us (t : Time_ns) : Time_us := mkTime_us (time_ns_val t / 1000).
+  Definition us_to_ns (t : Time_us) : Time_ns := mkTime_ns (time_us_val t * 1000).
+
+  Definition heatcap_cJ_to_J (c : HeatCap_cJ_mol_K) : HeatCap_J_mol_K := mkHeatCap_J (heatcap_cJ_val c / 100).
+  Definition heatcap_J_to_cJ (c : HeatCap_J_mol_K) : HeatCap_cJ_mol_K := mkHeatCap_cJ (heatcap_J_val c * 100).
+  Definition heatcap_mJ_to_J (c : HeatCap_mJ_mol_K) : HeatCap_J_mol_K := mkHeatCap_J (heatcap_mJ_val c / 1000).
+  Definition heatcap_J_to_mJ (c : HeatCap_J_mol_K) : HeatCap_mJ_mol_K := mkHeatCap_mJ (heatcap_J_val c * 1000).
+
+  Definition um_to_mm (l : Length_um) : Length_mm := mkLength_mm (length_um_val l / 1000).
+  Definition mm_to_um (l : Length_mm) : Length_um := mkLength_um (length_mm_val l * 1000).
+  Definition mm_to_cm (l : Length_mm) : Length_cm := mkLength_cm (length_mm_val l / 10).
+  Definition cm_to_mm (l : Length_cm) : Length_mm := mkLength_mm (length_cm_val l * 10).
+  Definition cm_to_m (l : Length_cm) : Length_m := mkLength_m (length_cm_val l / 100).
+  Definition m_to_cm (l : Length_m) : Length_cm := mkLength_cm (length_m_val l * 100).
+
+  Definition uL_to_mL (v : Volume_uL) : Volume_mL := mkVolume_mL (volume_uL_val v / 1000).
+  Definition mL_to_uL (v : Volume_mL) : Volume_uL := mkVolume_uL (volume_mL_val v * 1000).
+  Definition mL_to_L (v : Volume_mL) : Volume_L := mkVolume_L (volume_mL_val v / 1000).
+  Definition L_to_mL (v : Volume_L) : Volume_mL := mkVolume_mL (volume_L_val v * 1000).
+
+  Definition Ea_J_to_kJ (e : ActivationEnergy_J_mol) : ActivationEnergy_kJ_mol := mkEa_kJ_mol (Ea_J_mol_val e / 1000).
+  Definition Ea_kJ_to_J (e : ActivationEnergy_kJ_mol) : ActivationEnergy_J_mol := mkEa_J_mol (Ea_kJ_mol_val e * 1000).
+
+  Definition mm_mg_to_g (m : MolarMass_mg_mol) : MolarMass_g_mol := mkMolarMass_g (molarmass_mg_val m / 1000).
+  Definition mm_g_to_mg (m : MolarMass_g_mol) : MolarMass_mg_mol := mkMolarMass_mg (molarmass_g_val m * 1000).
+
+  Definition v_cm_s_to_m_s (v : Velocity_cm_s) : Velocity_m_s := mkVelocity_m_s (velocity_cm_s_val v / 100).
+  Definition v_m_s_to_cm_s (v : Velocity_m_s) : Velocity_cm_s := mkVelocity_cm_s (velocity_m_s_val v * 100).
+
+  Definition Mass := Mass_mg.
+  Definition mkMass := mkMass_mg.
+  Definition mass_mg_per_mol := mass_mg_val.
+
+  Definition Energy := Energy_cJ.
+  Definition mkEnergy := mkEnergy_cJ.
+  Definition energy_cJ_per_mol := energy_cJ_val.
+
+  Definition Temperature := Temp_cK.
+  Definition mkTemp := mkTemp_cK.
+  Definition temp_cK := temp_cK_val.
 
   Definition mass_zero : Mass := mkMass 0.
   Definition energy_zero : Energy := mkEnergy 0.
@@ -79,6 +201,13 @@ Module Units.
     energy_cJ_per_mol e1 <? energy_cJ_per_mol e2.
 
   Definition standard_temperature : Temperature := mkTemp 29815.
+  Definition standard_temperature_K : Temp_K := mkTemp_K 298.
+
+  Definition standard_pressure_kPa : Pressure_kPa := mkPressure_kPa 101.
+  Definition standard_pressure_Pa : Pressure_Pa := mkPressure_Pa 101325.
+
+  Definition R_gas_J_mol_K : Z := 8314.
+  Definition R_gas_mJ_mol_K : Z := 8314000.
 
   Lemma mass_add_comm : forall m1 m2, mass_add m1 m2 = mass_add m2 m1.
   Proof. intros [] []; unfold mass_add; f_equal; lia. Qed.
@@ -93,6 +222,15 @@ Module Units.
   Lemma energy_add_assoc : forall e1 e2 e3,
     energy_add (energy_add e1 e2) e3 = energy_add e1 (energy_add e2 e3).
   Proof. intros [] [] []; unfold energy_add; simpl; f_equal; lia. Qed.
+
+  Lemma cJ_J_roundtrip : forall e, energy_cJ_val (J_to_cJ (cJ_to_J e)) = energy_cJ_val e / 100 * 100.
+  Proof. intros []; reflexivity. Qed.
+
+  Lemma K_cK_roundtrip : forall t, temp_K_val (cK_to_K (K_to_cK t)) = temp_K_val t.
+  Proof. intros []. unfold cK_to_K, K_to_cK. simpl. rewrite Z.div_mul; [reflexivity | lia]. Qed.
+
+  Lemma us_ms_roundtrip : forall t, time_us_val (ms_to_us (us_to_ms t)) = time_us_val t / 1000 * 1000.
+  Proof. intros []; reflexivity. Qed.
 
 End Units.
 
@@ -1151,6 +1289,70 @@ Admitted.
   Lemma bessel_j0_at_0 : bessel_j0_x1000 0 = 1000.
   Proof. reflexivity. Qed.
 
+  (* ================================================================== *)
+  (* TYPE-SAFE WRAPPERS FOR PHYSICS FUNCTIONS                           *)
+  (* These enforce correct unit usage at compile time.                  *)
+  (* ================================================================== *)
+
+  Definition arrhenius_typed
+    (A_x1000 : Z)
+    (Ea : Units.ActivationEnergy_J_mol)
+    (T : Units.Temp_K)
+    : Units.Ratio_x1000 :=
+    Units.mkRatio_x1000 (arrhenius_x1000000 A_x1000 (Units.Ea_J_mol_val Ea) (Units.temp_K_val T) / 1000).
+
+  Definition equilibrium_constant_typed
+    (dG : Units.Energy_J)
+    (T : Units.Temp_K)
+    : Units.Ratio_x1000 :=
+    Units.mkRatio_x1000 (equilibrium_constant_x1000 (Units.energy_J_val dG) (Units.temp_K_val T)).
+
+  Definition gibbs_energy_typed
+    (dH : Units.Energy_J)
+    (dS_J_mol_K : Z)
+    (T : Units.Temp_K)
+    : Units.Energy_J :=
+    Units.mkEnergy_J (gibbs_energy_J_mol (Units.energy_J_val dH) dS_J_mol_K (Units.temp_K_val T)).
+
+  Definition clausius_clapeyron_typed
+    (P1 : Units.Pressure_kPa)
+    (T1 T2 : Units.Temp_K)
+    (dH_vap : Units.Energy_J)
+    : Units.Pressure_kPa :=
+    let P1_x1000 := Units.pressure_kPa_val P1 * 1000 in
+    let result_x1000 := clausius_clapeyron_x1000 P1_x1000
+                          (Units.temp_K_val T1) (Units.temp_K_val T2)
+                          (Units.energy_J_val dH_vap) in
+    Units.mkPressure_kPa (result_x1000 / 1000).
+
+  Definition integrate_Cp_typed
+    (A B C D E : Z)
+    (T1 T2 : Units.Temp_K)
+    : Units.Energy_J :=
+    Units.mkEnergy_J (integrate_Cp_shomate A B C D E (Units.temp_K_val T1) (Units.temp_K_val T2)).
+
+  Definition temp_from_energy_rise
+    (dH : Units.Energy_cJ)
+    (n_mol : Z)
+    (Cp : Units.HeatCap_cJ_mol_K)
+    : Units.Temp_cK :=
+    let Cp_val := Units.heatcap_cJ_val Cp in
+    if n_mol * Cp_val =? 0 then Units.mkTemp_cK 0
+    else Units.mkTemp_cK ((- Units.energy_cJ_val dH) / (n_mol * Cp_val / 100)).
+
+  Definition ignition_delay_typed
+    (Ea : Units.ActivationEnergy_J_mol)
+    (A_ns : Z)
+    (T : Units.Temp_K)
+    : Units.Time_us :=
+    let T_K := Units.temp_K_val T in
+    let Ea_val := Units.Ea_J_mol_val Ea in
+    if T_K <=? 0 then Units.mkTime_us 0
+    else
+      let exponent_x1000 := Ea_val * 1000 / (R_x1000 * T_K / 1000) in
+      let exp_val := exp_simple_x1000 exponent_x1000 in
+      Units.mkTime_us (A_ns * exp_val / 1000000).
+
 End Numerics.
 
 (******************************************************************************)
@@ -1717,24 +1919,32 @@ Module Species.
       Values from Mathematica 14.3 ChemicalData. *)
 
   Record liquid_properties := mkLiquidProps {
-    density_mg_mL : Z;
-    boiling_point_cK : Z;
-    flash_point_cK : option Z;
-    autoignition_cK : option Z
+    lp_density : Units.Density_g_mL;
+    lp_boiling_point : Units.Temp_cK;
+    lp_flash_point : option Units.Temp_cK;
+    lp_autoignition : option Units.Temp_cK
   }.
 
+  Definition density_mg_mL (props : liquid_properties) : Z :=
+    Units.density_g_mL_val (lp_density props) * 1000 / 1000.
+  Definition boiling_point_cK (props : liquid_properties) : Z :=
+    Units.temp_cK_val (lp_boiling_point props).
+  Definition flash_point_cK (props : liquid_properties) : option Z :=
+    option_map Units.temp_cK_val (lp_flash_point props).
+  Definition autoignition_cK (props : liquid_properties) : option Z :=
+    option_map Units.temp_cK_val (lp_autoignition props).
+
   Definition HNO3_properties : liquid_properties := mkLiquidProps
-    1513 35600 None (Some 53300).
+    (Units.mkDensity_g_mL 1513) (Units.mkTemp_cK 35600) None (Some (Units.mkTemp_cK 53300)).
 
   Definition UDMH_properties : liquid_properties := mkLiquidProps
-    790 33400 (Some 27400) (Some 52200).
+    (Units.mkDensity_g_mL 790) (Units.mkTemp_cK 33400) (Some (Units.mkTemp_cK 27400)) (Some (Units.mkTemp_cK 52200)).
 
   Definition aniline_properties : liquid_properties := mkLiquidProps
-    1022 45700 (Some 34900) (Some 77000).
+    (Units.mkDensity_g_mL 1022) (Units.mkTemp_cK 45700) (Some (Units.mkTemp_cK 34900)) (Some (Units.mkTemp_cK 77000)).
 
-  (* Furfuryl alcohol: density 1.13 g/mL, bp 170°C, fp 75°C, autoignition 491°C *)
   Definition furfuryl_properties : liquid_properties := mkLiquidProps
-    1130 44300 (Some 34800) (Some 76400).
+    (Units.mkDensity_g_mL 1130) (Units.mkTemp_cK 44300) (Some (Units.mkTemp_cK 34800)) (Some (Units.mkTemp_cK 76400)).
 
   Definition volume_uL (props : liquid_properties) (mass_mg : Z) : Z :=
     if density_mg_mL props =? 0 then 0
@@ -1743,23 +1953,29 @@ Module Species.
   Definition mass_from_volume_mg (props : liquid_properties) (vol_uL : Z) : Z :=
     (vol_uL * density_mg_mL props) / 1000.
 
-  Definition below_boiling (props : liquid_properties) (temp_cK : Z) : Prop :=
-    temp_cK < boiling_point_cK props.
+  Definition below_boiling (props : liquid_properties) (temp : Units.Temp_cK) : Prop :=
+    Units.temp_cK_val temp < boiling_point_cK props.
 
-  Definition below_autoignition (props : liquid_properties) (temp_cK : Z) : Prop :=
-    match autoignition_cK props with
-    | Some ai => temp_cK < ai
+  Definition below_autoignition (props : liquid_properties) (temp : Units.Temp_cK) : Prop :=
+    match lp_autoignition props with
+    | Some ai => Units.temp_cK_val temp < Units.temp_cK_val ai
     | None => True
     end.
 
-  Definition safe_storage_temp (props : liquid_properties) (temp_cK : Z) : Prop :=
-    below_boiling props temp_cK /\ below_autoignition props temp_cK.
+  Definition safe_storage_temp (props : liquid_properties) (temp : Units.Temp_cK) : Prop :=
+    below_boiling props temp /\ below_autoignition props temp.
 
-  Lemma HNO3_room_temp_safe : safe_storage_temp HNO3_properties 29815.
-  Proof. unfold safe_storage_temp, below_boiling, below_autoignition. simpl. lia. Qed.
+  Lemma HNO3_room_temp_safe : safe_storage_temp HNO3_properties (Units.mkTemp_cK 29815).
+  Proof.
+    unfold safe_storage_temp, below_boiling, below_autoignition, boiling_point_cK.
+    unfold HNO3_properties. simpl. lia.
+  Qed.
 
-  Lemma UDMH_room_temp_safe : safe_storage_temp UDMH_properties 29815.
-  Proof. unfold safe_storage_temp, below_boiling, below_autoignition. simpl. lia. Qed.
+  Lemma UDMH_room_temp_safe : safe_storage_temp UDMH_properties (Units.mkTemp_cK 29815).
+  Proof.
+    unfold safe_storage_temp, below_boiling, below_autoignition, boiling_point_cK.
+    unfold UDMH_properties. simpl. lia.
+  Qed.
 
 End Species.
 
@@ -1780,24 +1996,27 @@ Module Thermochemistry.
     sh_C : Z;
     sh_D : Z;
     sh_E : Z;
-    sh_T_min : Z;
-    sh_T_max : Z
+    sh_T_min_K : Units.Temp_K;
+    sh_T_max_K : Units.Temp_K
   }.
 
+  Definition sh_T_min (c : shomate_coeffs) : Z := Units.temp_K_val (sh_T_min_K c).
+  Definition sh_T_max (c : shomate_coeffs) : Z := Units.temp_K_val (sh_T_max_K c).
+
   Definition N2_shomate_high : shomate_coeffs := mkShomate
-    26092 8219 (-1976) 159 44 1000 6000.
+    26092 8219 (-1976) 159 44 (Units.mkTemp_K 1000) (Units.mkTemp_K 6000).
 
   Definition CO2_shomate_low : shomate_coeffs := mkShomate
-    24997 55187 (-33691) 7948 (-137) 298 1200.
+    24997 55187 (-33691) 7948 (-137) (Units.mkTemp_K 298) (Units.mkTemp_K 1200).
 
   Definition CO2_shomate_high : shomate_coeffs := mkShomate
-    58166 2720 (-492) 39 (-6447) 1200 6000.
+    58166 2720 (-492) 39 (-6447) (Units.mkTemp_K 1200) (Units.mkTemp_K 6000).
 
   Definition H2O_shomate_low : shomate_coeffs := mkShomate
-    30092 6833 6793 (-2534) 82 500 1700.
+    30092 6833 6793 (-2534) 82 (Units.mkTemp_K 500) (Units.mkTemp_K 1700).
 
   Definition H2O_shomate_high : shomate_coeffs := mkShomate
-    41964 8622 (-1500) 98 (-11158) 1700 6000.
+    41964 8622 (-1500) 98 (-11158) (Units.mkTemp_K 1700) (Units.mkTemp_K 6000).
 
   Definition Cp_shomate (c : shomate_coeffs) (T_K : Z) : Z :=
     let t := T_K in
@@ -2038,17 +2257,19 @@ Module HessLaw.
 
   Record formation_enthalpy := mkHf {
     hf_name : nat;
-    hf_cJ_mol : Z
+    hf_value : Units.Energy_cJ
   }.
 
-  Definition Hf_HNO3_l : formation_enthalpy := mkHf 1 (-17410000).
-  Definition Hf_UDMH_l : formation_enthalpy := mkHf 2 4830000.
-  Definition Hf_aniline_l : formation_enthalpy := mkHf 3 3130000.
-  Definition Hf_furfuryl_l : formation_enthalpy := mkHf 4 (-27620000).
-  Definition Hf_N2_g : formation_enthalpy := mkHf 5 0.
-  Definition Hf_CO2_g : formation_enthalpy := mkHf 6 (-39351000).
-  Definition Hf_H2O_g : formation_enthalpy := mkHf 7 (-24183000).
-  Definition Hf_H2O_l : formation_enthalpy := mkHf 8 (-28583000).
+  Definition hf_cJ_mol (h : formation_enthalpy) : Z := Units.energy_cJ_val (hf_value h).
+
+  Definition Hf_HNO3_l : formation_enthalpy := mkHf 1 (Units.mkEnergy_cJ (-17410000)).
+  Definition Hf_UDMH_l : formation_enthalpy := mkHf 2 (Units.mkEnergy_cJ 4830000).
+  Definition Hf_aniline_l : formation_enthalpy := mkHf 3 (Units.mkEnergy_cJ 3130000).
+  Definition Hf_furfuryl_l : formation_enthalpy := mkHf 4 (Units.mkEnergy_cJ (-27620000)).
+  Definition Hf_N2_g : formation_enthalpy := mkHf 5 (Units.mkEnergy_cJ 0).
+  Definition Hf_CO2_g : formation_enthalpy := mkHf 6 (Units.mkEnergy_cJ (-39351000)).
+  Definition Hf_H2O_g : formation_enthalpy := mkHf 7 (Units.mkEnergy_cJ (-24183000)).
+  Definition Hf_H2O_l : formation_enthalpy := mkHf 8 (Units.mkEnergy_cJ (-28583000)).
 
   Definition delta_H_hess (reactants products : list (Z * formation_enthalpy)) : Z :=
     let sum_products := fold_left (fun acc p => acc + fst p * hf_cJ_mol (snd p)) products 0 in
@@ -2130,51 +2351,44 @@ Module Synthesis.
   Module OstwaldProcess.
 
     Record synthesis_step := mkSynthStep {
-      step_name : nat;
-      step_dH_cJ : Z;
-      step_temp_cK : Z;
-      step_catalyst : option nat
+      ss_name : nat;
+      ss_dH : Units.Energy_cJ;
+      ss_temp : Units.Temp_cK;
+      ss_catalyst : option nat
     }.
+
+    Definition step_dH_cJ (s : synthesis_step) : Z := Units.energy_cJ_val (ss_dH s).
+    Definition step_temp_cK (s : synthesis_step) : Z := Units.temp_cK_val (ss_temp s).
 
     Definition platinum_catalyst : nat := 1%nat.
     Definition rhodium_catalyst : nat := 2%nat.
 
-    (* Step 1: Ammonia oxidation *)
-    (* 4 NH3(g) + 5 O2(g) -> 4 NO(g) + 6 H2O(g) *)
-    (* dH = 4*90.29 + 6*(-241.83) - 4*(-45.90) - 5*0 = -906.22 kJ = -90622000 cJ *)
-    Definition step1_dH_cJ : Z := -90622000.
-    Definition step1_temp_cK : Z := 112315.
+    Definition step1_dH : Units.Energy_cJ := Units.mkEnergy_cJ (-90622000).
+    Definition step1_temp : Units.Temp_cK := Units.mkTemp_cK 112315.
 
-    Definition step1 : synthesis_step := mkSynthStep 1 step1_dH_cJ step1_temp_cK (Some platinum_catalyst).
+    Definition step1 : synthesis_step := mkSynthStep 1 step1_dH step1_temp (Some platinum_catalyst).
 
     Lemma step1_exothermic : step_dH_cJ step1 < 0.
-    Proof. unfold step1, step1_dH_cJ. simpl. lia. Qed.
+    Proof. unfold step1, step_dH_cJ, step1_dH. simpl. lia. Qed.
 
-    (* Step 2: NO oxidation *)
-    (* 2 NO(g) + O2(g) -> 2 NO2(g) *)
-    (* dH = 2*33.10 - 2*90.29 - 0 = -114.38 kJ = -11438000 cJ *)
-    Definition step2_dH_cJ : Z := -11438000.
-    Definition step2_temp_cK : Z := 32315.
+    Definition step2_dH : Units.Energy_cJ := Units.mkEnergy_cJ (-11438000).
+    Definition step2_temp : Units.Temp_cK := Units.mkTemp_cK 32315.
 
-    Definition step2 : synthesis_step := mkSynthStep 2 step2_dH_cJ step2_temp_cK None.
+    Definition step2 : synthesis_step := mkSynthStep 2 step2_dH step2_temp None.
 
     Lemma step2_exothermic : step_dH_cJ step2 < 0.
-    Proof. unfold step2, step2_dH_cJ. simpl. lia. Qed.
+    Proof. unfold step2, step_dH_cJ, step2_dH. simpl. lia. Qed.
 
-    (* Step 3: Absorption *)
-    (* 3 NO2(g) + H2O(l) -> 2 HNO3(l) + NO(g) *)
-    (* dH = 2*(-174.10) + 90.29 - 3*33.10 - (-285.83) = -71.38 kJ = -7138000 cJ *)
-    Definition step3_dH_cJ : Z := -7138000.
-    Definition step3_temp_cK : Z := 29815.
+    Definition step3_dH : Units.Energy_cJ := Units.mkEnergy_cJ (-7138000).
+    Definition step3_temp : Units.Temp_cK := Units.mkTemp_cK 29815.
 
-    Definition step3 : synthesis_step := mkSynthStep 3 step3_dH_cJ step3_temp_cK None.
+    Definition step3 : synthesis_step := mkSynthStep 3 step3_dH step3_temp None.
 
     Lemma step3_exothermic : step_dH_cJ step3 < 0.
-    Proof. unfold step3, step3_dH_cJ. simpl. lia. Qed.
+    Proof. unfold step3, step_dH_cJ, step3_dH. simpl. lia. Qed.
 
-    (* Overall reaction: NH3 + 2 O2 -> HNO3 + H2O *)
-    (* dH = -174.10 + (-241.83) - (-45.90) - 0 = -370.03 kJ = -37003000 cJ per mol NH3 *)
-    Definition overall_dH_cJ_per_mol_NH3 : Z := -37003000.
+    Definition overall_dH : Units.Energy_cJ := Units.mkEnergy_cJ (-37003000).
+    Definition overall_dH_cJ_per_mol_NH3 : Z := Units.energy_cJ_val overall_dH.
 
     Theorem ostwald_all_exothermic :
       step_dH_cJ step1 < 0 /\
@@ -2500,13 +2714,16 @@ End IdealGas.
 Module Dissociation.
 
   Record equilibrium_data := mkEquil {
-    eq_dH_J_mol : Z;
-    eq_dS_J_mol_K : Z
+    eq_dH : Units.Energy_J;
+    eq_dS_val : Z  (* J/(mol·K) - dimensionless coefficient *)
   }.
 
-  Definition CO2_dissociation : equilibrium_data := mkEquil 283000 87.
-  Definition H2O_dissociation : equilibrium_data := mkEquil 242000 44.
-  Definition N2_dissociation : equilibrium_data := mkEquil 945000 115.
+  Definition eq_dH_J_mol (eq : equilibrium_data) : Z := Units.energy_J_val (eq_dH eq).
+  Definition eq_dS_J_mol_K (eq : equilibrium_data) : Z := eq_dS_val eq.
+
+  Definition CO2_dissociation : equilibrium_data := mkEquil (Units.mkEnergy_J 283000) 87.
+  Definition H2O_dissociation : equilibrium_data := mkEquil (Units.mkEnergy_J 242000) 44.
+  Definition N2_dissociation : equilibrium_data := mkEquil (Units.mkEnergy_J 945000) 115.
 
   Definition gibbs_free_energy (eq : equilibrium_data) (T_K : Z) : Z :=
     eq_dH_J_mol eq - T_K * eq_dS_J_mol_K eq.
@@ -2565,16 +2782,20 @@ Module Dissociation.
   Qed.
 
   Record dissociation_table_entry := mkDissocEntry {
-    dt_T_K : Z;
-    dt_alpha_CO2_ppm : Z;
-    dt_alpha_H2O_ppm : Z
+    dt_T : Units.Temp_K;
+    dt_alpha_CO2 : Units.Ratio_ppm;
+    dt_alpha_H2O : Units.Ratio_ppm
   }.
 
+  Definition dt_T_K (e : dissociation_table_entry) : Z := Units.temp_K_val (dt_T e).
+  Definition dt_alpha_CO2_ppm (e : dissociation_table_entry) : Z := Units.ratio_ppm_val (dt_alpha_CO2 e).
+  Definition dt_alpha_H2O_ppm (e : dissociation_table_entry) : Z := Units.ratio_ppm_val (dt_alpha_H2O e).
+
   Definition dissociation_table : list dissociation_table_entry := [
-    mkDissocEntry 2500 10000 1000;
-    mkDissocEntry 3000 62000 11000;
-    mkDissocEntry 3500 140000 23000;
-    mkDissocEntry 4000 280000 45000
+    mkDissocEntry (Units.mkTemp_K 2500) (Units.mkRatio_ppm 10000) (Units.mkRatio_ppm 1000);
+    mkDissocEntry (Units.mkTemp_K 3000) (Units.mkRatio_ppm 62000) (Units.mkRatio_ppm 11000);
+    mkDissocEntry (Units.mkTemp_K 3500) (Units.mkRatio_ppm 140000) (Units.mkRatio_ppm 23000);
+    mkDissocEntry (Units.mkTemp_K 4000) (Units.mkRatio_ppm 280000) (Units.mkRatio_ppm 45000)
   ].
 
   Definition effective_temperature_factor : Z := 750.
@@ -2601,7 +2822,7 @@ Module Dissociation.
   (* This equilibrium determines RFNA vapor composition                 *)
   (* ================================================================== *)
 
-  Definition NO2_N2O4_equilibrium : equilibrium_data := mkEquil 57200 176.
+  Definition NO2_N2O4_equilibrium : equilibrium_data := mkEquil (Units.mkEnergy_J 57200) 176.
 
   Definition NO2_N2O4_gibbs (T_K : Z) : Z :=
     gibbs_free_energy NO2_N2O4_equilibrium T_K.
@@ -2776,13 +2997,19 @@ Module TwoPhase.
 
   Record phase_transition := mkPhaseTransition {
     pt_species : nat;
-    pt_Hvap_cJ_mol : Z;
-    pt_Tb_cK : Z
+    pt_Hvap : Units.Energy_cJ;
+    pt_Tb : Units.Temp_cK
   }.
 
-  Definition HNO3_vaporization : phase_transition := mkPhaseTransition 1 3940000 35600.
-  Definition UDMH_vaporization : phase_transition := mkPhaseTransition 2 3520000 33600.
-  Definition H2O_vaporization : phase_transition := mkPhaseTransition 3 4070000 37315.
+  Definition pt_Hvap_cJ_mol (pt : phase_transition) : Z := Units.energy_cJ_val (pt_Hvap pt).
+  Definition pt_Tb_cK (pt : phase_transition) : Z := Units.temp_cK_val (pt_Tb pt).
+
+  Definition HNO3_vaporization : phase_transition :=
+    mkPhaseTransition 1 (Units.mkEnergy_cJ 3940000) (Units.mkTemp_cK 35600).
+  Definition UDMH_vaporization : phase_transition :=
+    mkPhaseTransition 2 (Units.mkEnergy_cJ 3520000) (Units.mkTemp_cK 33600).
+  Definition H2O_vaporization : phase_transition :=
+    mkPhaseTransition 3 (Units.mkEnergy_cJ 4070000) (Units.mkTemp_cK 37315).
 
   Definition total_vaporization_enthalpy (transitions : list (Z * phase_transition)) : Z :=
     fold_left (fun acc p => acc + fst p * pt_Hvap_cJ_mol (snd p)) transitions 0.
@@ -2854,10 +3081,13 @@ Module MultiDiffusion.
   Record binary_diffusion := mkBinDiff {
     bd_species1 : nat;
     bd_species2 : nat;
-    bd_D_ref_cm2_s_x1000 : Z;
-    bd_T_ref_K : Z;
-    bd_n_exp_x1000 : Z
+    bd_D_ref_x1000 : Z;           (* Diffusion coeff at T_ref in cm²/s × 1000 *)
+    bd_T_ref : Units.Temp_K;
+    bd_n_exp_x1000 : Z            (* Temperature exponent × 1000 *)
   }.
+
+  Definition bd_D_ref_cm2_s_x1000 (bd : binary_diffusion) : Z := bd_D_ref_x1000 bd.
+  Definition bd_T_ref_K (bd : binary_diffusion) : Z := Units.temp_K_val (bd_T_ref bd).
 
   Definition binary_D_cm2_s_x1000 (bd : binary_diffusion) (T_K P_atm : Z) : Z :=
     if P_atm <=? 0 then 0
@@ -2866,11 +3096,11 @@ Module MultiDiffusion.
       let T_power := Numerics.power_x1000 T_ratio (bd_n_exp_x1000 bd) in
       bd_D_ref_cm2_s_x1000 bd * T_power / P_atm / 1000.
 
-  Definition D_N2_CO2 : binary_diffusion := mkBinDiff 1 2 168 300 1750.
-  Definition D_N2_H2O : binary_diffusion := mkBinDiff 1 3 242 300 1750.
-  Definition D_CO2_H2O : binary_diffusion := mkBinDiff 2 3 164 300 1750.
-  Definition D_N2_O2 : binary_diffusion := mkBinDiff 1 4 208 300 1750.
-  Definition D_CO_O2 : binary_diffusion := mkBinDiff 5 4 219 300 1750.
+  Definition D_N2_CO2 : binary_diffusion := mkBinDiff 1 2 168 (Units.mkTemp_K 300) 1750.
+  Definition D_N2_H2O : binary_diffusion := mkBinDiff 1 3 242 (Units.mkTemp_K 300) 1750.
+  Definition D_CO2_H2O : binary_diffusion := mkBinDiff 2 3 164 (Units.mkTemp_K 300) 1750.
+  Definition D_N2_O2 : binary_diffusion := mkBinDiff 1 4 208 (Units.mkTemp_K 300) 1750.
+  Definition D_CO_O2 : binary_diffusion := mkBinDiff 5 4 219 (Units.mkTemp_K 300) 1750.
 
   Definition effective_D_cm2_s_x1000 (Ds : list binary_diffusion) (T_K P_atm : Z) : Z :=
     let sum := fold_left (fun acc d => acc + binary_D_cm2_s_x1000 d T_K P_atm) Ds 0 in
@@ -3090,30 +3320,33 @@ Module ReactionKinetics.
   Definition R_gas_mJ_mol_K : Z := 8314.
 
   Record arrhenius_point := mkArrPt {
-    ap_temp_K : Z;
-    ap_delay_us : Z
+    ap_temp : Units.Temp_K;
+    ap_delay : Units.Time_us
   }.
 
+  Definition ap_temp_K (p : arrhenius_point) : Z := Units.temp_K_val (ap_temp p).
+  Definition ap_delay_us (p : arrhenius_point) : Z := Units.time_us_val (ap_delay p).
+
   Definition RFNA_UDMH_arrhenius_table : list arrhenius_point := [
-    mkArrPt 273 31738;
-    mkArrPt 288 12500;
-    mkArrPt 298 5000;
-    mkArrPt 313 2100;
-    mkArrPt 323 1049;
-    mkArrPt 348 275;
-    mkArrPt 373 86
+    mkArrPt (Units.mkTemp_K 273) (Units.mkTime_us 31738);
+    mkArrPt (Units.mkTemp_K 288) (Units.mkTime_us 12500);
+    mkArrPt (Units.mkTemp_K 298) (Units.mkTime_us 5000);
+    mkArrPt (Units.mkTemp_K 313) (Units.mkTime_us 2100);
+    mkArrPt (Units.mkTemp_K 323) (Units.mkTime_us 1049);
+    mkArrPt (Units.mkTemp_K 348) (Units.mkTime_us 275);
+    mkArrPt (Units.mkTemp_K 373) (Units.mkTime_us 86)
   ].
 
-  Fixpoint lookup_delay_table (table : list arrhenius_point) (T_K : Z) : option Z :=
+  Fixpoint lookup_delay_table (table : list arrhenius_point) (T : Units.Temp_K) : option Units.Time_us :=
     match table with
     | [] => None
     | p :: rest =>
-        if ap_temp_K p =? T_K then Some (ap_delay_us p)
-        else lookup_delay_table rest T_K
+        if ap_temp_K p =? Units.temp_K_val T then Some (ap_delay p)
+        else lookup_delay_table rest T
     end.
 
   Definition ignition_delay_us (T_K : Z) : option Z :=
-    lookup_delay_table RFNA_UDMH_arrhenius_table T_K.
+    option_map Units.time_us_val (lookup_delay_table RFNA_UDMH_arrhenius_table (Units.mkTemp_K T_K)).
 
   Lemma ignition_delay_298K :
     ignition_delay_us 298 = Some 5000.
@@ -4122,26 +4355,30 @@ Module Hypergolic.
       with values verified against Mathematica. *)
 
   Record arrhenius_params := mkArrhenius {
-    A_ns : Z;             (* pre-exponential factor, nanoseconds *)
-    Ea_J_per_mol : Z      (* activation energy, J/mol *)
+    arr_A_ns : Z;              (* pre-exponential factor, nanoseconds *)
+    arr_Ea : Units.ActivationEnergy_J_mol
   }.
+
+  Definition A_ns (p : arrhenius_params) : Z := arr_A_ns p.
+  Definition Ea_J_per_mol (p : arrhenius_params) : Z := Units.Ea_J_mol_val (arr_Ea p).
 
   (* RFNA/UDMH: Ea ≈ 30 kJ/mol, fitted to 5 ms at 298 K *)
-  Definition RFNA_UDMH_arrhenius : arrhenius_params := mkArrhenius 28 30000.
+  Definition RFNA_UDMH_arrhenius : arrhenius_params := mkArrhenius 28 (Units.mkEa_J_mol 30000).
 
-  (* Ignition delay lookup table: (temp_cK, delay_us) *)
-  (* Values from Mathematica: τ = A * exp(Ea/RT) *)
   Record ignition_point := mkIgnitionPt {
-    ignition_temp_cK : Z;
-    delay_us : Z
+    ign_temp : Units.Temp_cK;
+    ign_delay : Units.Time_us
   }.
 
+  Definition ignition_temp_cK (p : ignition_point) : Z := Units.temp_cK_val (ign_temp p).
+  Definition delay_us (p : ignition_point) : Z := Units.time_us_val (ign_delay p).
+
   Definition RFNA_UDMH_delay_table : list ignition_point := [
-    mkIgnitionPt 27300 15247;   (* 273 K: 15.2 ms *)
-    mkIgnitionPt 29800 5031;    (* 298 K: 5.0 ms *)
-    mkIgnitionPt 32300 1971;    (* 323 K: 2.0 ms *)
-    mkIgnitionPt 34800 883;     (* 348 K: 0.88 ms *)
-    mkIgnitionPt 37300 441      (* 373 K: 0.44 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 27300) (Units.mkTime_us 15247);
+    mkIgnitionPt (Units.mkTemp_cK 29800) (Units.mkTime_us 5031);
+    mkIgnitionPt (Units.mkTemp_cK 32300) (Units.mkTime_us 1971);
+    mkIgnitionPt (Units.mkTemp_cK 34800) (Units.mkTime_us 883);
+    mkIgnitionPt (Units.mkTemp_cK 37300) (Units.mkTime_us 441)
   ].
 
   Fixpoint lookup_delay (table : list ignition_point) (temp_cK : Z) : option Z :=
@@ -4152,44 +4389,45 @@ Module Hypergolic.
         else lookup_delay rest temp_cK
     end.
 
-  Definition hypergolic_threshold_us : Z := 50000. (* 50 ms *)
+  Definition hypergolic_threshold : Units.Time_us := Units.mkTime_us 50000.
+  Definition hypergolic_threshold_us : Z := Units.time_us_val hypergolic_threshold.
 
-  Definition is_fast_ignition (delay_us : Z) : Prop :=
-    delay_us < hypergolic_threshold_us.
+  Definition is_fast_ignition (d : Z) : Prop := d < hypergolic_threshold_us.
 
   Lemma RFNA_UDMH_298K_delay :
     lookup_delay RFNA_UDMH_delay_table 29800 = Some 5031.
   Proof. reflexivity. Qed.
 
-  Lemma RFNA_UDMH_298K_is_fast :
-    is_fast_ignition 5031.
-  Proof. unfold is_fast_ignition, hypergolic_threshold_us. lia. Qed.
+  Lemma RFNA_UDMH_298K_is_fast : is_fast_ignition 5031.
+  Proof. unfold is_fast_ignition, hypergolic_threshold_us, hypergolic_threshold. simpl. lia. Qed.
 
-  (* All table entries are hypergolic (< 50 ms) *)
   Lemma table_all_hypergolic : forall p,
     In p RFNA_UDMH_delay_table -> delay_us p < hypergolic_threshold_us.
   Proof.
-    intros p Hin. unfold RFNA_UDMH_delay_table, hypergolic_threshold_us in *.
+    intros p Hin. unfold RFNA_UDMH_delay_table, hypergolic_threshold_us, hypergolic_threshold in *.
     simpl in Hin.
-    destruct Hin as [H|[H|[H|[H|[H|H]]]]]; try subst; simpl; try lia; contradiction.
+    destruct Hin as [H|[H|[H|[H|[H|H]]]]]; subst; unfold delay_us; simpl; lia.
   Qed.
 
-  (* Ignition delay decreases with temperature *)
   Lemma delay_decreases_273_298 :
-    delay_us (mkIgnitionPt 27300 15247) > delay_us (mkIgnitionPt 29800 5031).
-  Proof. simpl. lia. Qed.
+    delay_us (mkIgnitionPt (Units.mkTemp_cK 27300) (Units.mkTime_us 15247)) >
+    delay_us (mkIgnitionPt (Units.mkTemp_cK 29800) (Units.mkTime_us 5031)).
+  Proof. unfold delay_us. simpl. lia. Qed.
 
   Lemma delay_decreases_298_323 :
-    delay_us (mkIgnitionPt 29800 5031) > delay_us (mkIgnitionPt 32300 1971).
-  Proof. simpl. lia. Qed.
+    delay_us (mkIgnitionPt (Units.mkTemp_cK 29800) (Units.mkTime_us 5031)) >
+    delay_us (mkIgnitionPt (Units.mkTemp_cK 32300) (Units.mkTime_us 1971)).
+  Proof. unfold delay_us. simpl. lia. Qed.
 
   Lemma delay_decreases_323_348 :
-    delay_us (mkIgnitionPt 32300 1971) > delay_us (mkIgnitionPt 34800 883).
-  Proof. simpl. lia. Qed.
+    delay_us (mkIgnitionPt (Units.mkTemp_cK 32300) (Units.mkTime_us 1971)) >
+    delay_us (mkIgnitionPt (Units.mkTemp_cK 34800) (Units.mkTime_us 883)).
+  Proof. unfold delay_us. simpl. lia. Qed.
 
   Lemma delay_decreases_348_373 :
-    delay_us (mkIgnitionPt 34800 883) > delay_us (mkIgnitionPt 37300 441).
-  Proof. simpl. lia. Qed.
+    delay_us (mkIgnitionPt (Units.mkTemp_cK 34800) (Units.mkTime_us 883)) >
+    delay_us (mkIgnitionPt (Units.mkTemp_cK 37300) (Units.mkTime_us 441)).
+  Proof. unfold delay_us. simpl. lia. Qed.
 
   (* ================================================================== *)
   (* COMPUTED ARRHENIUS KINETICS                                        *)
@@ -4199,32 +4437,31 @@ Module Hypergolic.
   (* Verified against Mathematica 14.3                                  *)
   (* ================================================================== *)
 
-  (* Arrhenius reference data: (T_K, τ_μs) verified against Mathematica *)
-  (* τ = A × exp(Ea/RT) with A = 8.599×10⁻¹² s, Ea = 50 kJ/mol *)
   Record arrhenius_point := mkArrheniusPt {
-    ap_temp_K : Z;
-    ap_delay_us : Z
+    arr_temp : Units.Temp_K;
+    arr_delay : Units.Time_us
   }.
 
-  (* Reference table for RFNA/UDMH, computed by Mathematica *)
+  Definition ap_temp_K (p : arrhenius_point) : Z := Units.temp_K_val (arr_temp p).
+  Definition ap_delay_us (p : arrhenius_point) : Z := Units.time_us_val (arr_delay p).
+
   Definition RFNA_UDMH_arrhenius_table : list arrhenius_point := [
-    mkArrheniusPt 253 137485;   (* -20°C *)
-    mkArrheniusPt 263 71251;    (* -10°C *)
-    mkArrheniusPt 273 31738;    (* 0°C *)
-    mkArrheniusPt 283 14960;    (* 10°C *)
-    mkArrheniusPt 288 10464;    (* 15°C *)
-    mkArrheniusPt 293 7400;     (* 20°C *)
-    mkArrheniusPt 298 5000;     (* 25°C - reference *)
-    mkArrheniusPt 303 3803;     (* 30°C *)
-    mkArrheniusPt 308 2782;     (* 35°C *)
-    mkArrheniusPt 313 2101;     (* 40°C *)
-    mkArrheniusPt 323 1049;     (* 50°C *)
-    mkArrheniusPt 333 552;      (* 60°C *)
-    mkArrheniusPt 348 275;      (* 75°C *)
-    mkArrheniusPt 373 86        (* 100°C *)
+    mkArrheniusPt (Units.mkTemp_K 253) (Units.mkTime_us 137485);
+    mkArrheniusPt (Units.mkTemp_K 263) (Units.mkTime_us 71251);
+    mkArrheniusPt (Units.mkTemp_K 273) (Units.mkTime_us 31738);
+    mkArrheniusPt (Units.mkTemp_K 283) (Units.mkTime_us 14960);
+    mkArrheniusPt (Units.mkTemp_K 288) (Units.mkTime_us 10464);
+    mkArrheniusPt (Units.mkTemp_K 293) (Units.mkTime_us 7400);
+    mkArrheniusPt (Units.mkTemp_K 298) (Units.mkTime_us 5000);
+    mkArrheniusPt (Units.mkTemp_K 303) (Units.mkTime_us 3803);
+    mkArrheniusPt (Units.mkTemp_K 308) (Units.mkTime_us 2782);
+    mkArrheniusPt (Units.mkTemp_K 313) (Units.mkTime_us 2101);
+    mkArrheniusPt (Units.mkTemp_K 323) (Units.mkTime_us 1049);
+    mkArrheniusPt (Units.mkTemp_K 333) (Units.mkTime_us 552);
+    mkArrheniusPt (Units.mkTemp_K 348) (Units.mkTime_us 275);
+    mkArrheniusPt (Units.mkTemp_K 373) (Units.mkTime_us 86)
   ].
 
-  (* Lookup exact temperature in table *)
   Fixpoint lookup_arrhenius_exact (table : list arrhenius_point) (T_K : Z) : option Z :=
     match table with
     | [] => None
@@ -4233,12 +4470,10 @@ Module Hypergolic.
         else lookup_arrhenius_exact rest T_K
     end.
 
-  (* Linear interpolation between two points *)
   Definition interpolate_delay (T1 tau1 T2 tau2 T : Z) : Z :=
     if T2 =? T1 then tau1
     else tau1 + (tau2 - tau1) * (T - T1) / (T2 - T1).
 
-  (* Find bracketing points and interpolate *)
   Fixpoint interpolate_arrhenius (table : list arrhenius_point) (T_K : Z) : Z :=
     match table with
     | [] => 0
@@ -4251,7 +4486,6 @@ Module Hypergolic.
         else interpolate_arrhenius rest T_K
     end.
 
-  (* Main function: compute ignition delay at any temperature *)
   Definition arrhenius_delay_us (T_K : Z) : Z :=
     match lookup_arrhenius_exact RFNA_UDMH_arrhenius_table T_K with
     | Some tau => tau
@@ -4436,49 +4670,51 @@ Module Hypergolic.
   Record kinetics_params := mkKinetics {
     kp_name : nat;
     kp_A_per_s_x1000 : Z;      (* Pre-exponential factor ×1000 *)
-    kp_Ea_J_mol : Z;           (* Activation energy in J/mol *)
+    kp_Ea : Units.ActivationEnergy_J_mol;
     kp_n_oxidizer : Z;         (* Reaction order in oxidizer ×1000 *)
     kp_n_fuel : Z              (* Reaction order in fuel ×1000 *)
   }.
 
+  Definition kp_Ea_J_mol (k : kinetics_params) : Z := Units.Ea_J_mol_val (kp_Ea k).
+
   (* RFNA/UDMH: Ea = 50 kJ/mol (literature: 42-58 kJ/mol) *)
   Definition RFNA_UDMH_kinetics : kinetics_params :=
-    mkKinetics 1 1200000000 50000 1000 800.
+    mkKinetics 1 1200000000 (Units.mkEa_J_mol 50000) 1000 800.
 
   (* RFNA/Aniline: Ea = 45 kJ/mol (literature: 35-50 kJ/mol) *)
   Definition RFNA_aniline_kinetics : kinetics_params :=
-    mkKinetics 2 800000000 45000 1000 900.
+    mkKinetics 2 800000000 (Units.mkEa_J_mol 45000) 1000 900.
 
   (* RFNA/Furfuryl: Ea = 48 kJ/mol (literature: 38-52 kJ/mol) *)
   Definition RFNA_furfuryl_kinetics : kinetics_params :=
-    mkKinetics 3 1000000000 48000 1000 850.
+    mkKinetics 3 1000000000 (Units.mkEa_J_mol 48000) 1000 850.
 
   (* Ignition delay lookup table for RFNA/UDMH with Ea=50kJ/mol *)
   (* Values computed using τ = A * exp(Ea/RT), A fitted to 5ms at 298K *)
   Definition RFNA_UDMH_delay_table_v2 : list ignition_point := [
-    mkIgnitionPt 27300 89000;   (* 273 K: 89 ms - not hypergolic at cold *)
-    mkIgnitionPt 28800 25000;   (* 288 K: 25 ms *)
-    mkIgnitionPt 29800 5000;    (* 298 K: 5 ms - fitted *)
-    mkIgnitionPt 31300 2100;    (* 313 K: 2.1 ms *)
-    mkIgnitionPt 32300 1100;    (* 323 K: 1.1 ms *)
-    mkIgnitionPt 34800 320;     (* 348 K: 0.32 ms *)
-    mkIgnitionPt 37300 110      (* 373 K: 0.11 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 27300) (Units.mkTime_us 89000);   (* 273 K: 89 ms - not hypergolic at cold *)
+    mkIgnitionPt (Units.mkTemp_cK 28800) (Units.mkTime_us 25000);   (* 288 K: 25 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 29800) (Units.mkTime_us 5000);    (* 298 K: 5 ms - fitted *)
+    mkIgnitionPt (Units.mkTemp_cK 31300) (Units.mkTime_us 2100);    (* 313 K: 2.1 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 32300) (Units.mkTime_us 1100);    (* 323 K: 1.1 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 34800) (Units.mkTime_us 320);     (* 348 K: 0.32 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 37300) (Units.mkTime_us 110)      (* 373 K: 0.11 ms *)
   ].
 
   (* RFNA/Aniline delay table with Ea=45kJ/mol *)
   Definition RFNA_aniline_delay_table_v2 : list ignition_point := [
-    mkIgnitionPt 27300 45000;   (* 273 K: 45 ms *)
-    mkIgnitionPt 29800 8000;    (* 298 K: 8 ms *)
-    mkIgnitionPt 32300 2000;    (* 323 K: 2 ms *)
-    mkIgnitionPt 37300 250      (* 373 K: 0.25 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 27300) (Units.mkTime_us 45000);   (* 273 K: 45 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 29800) (Units.mkTime_us 8000);    (* 298 K: 8 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 32300) (Units.mkTime_us 2000);    (* 323 K: 2 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 37300) (Units.mkTime_us 250)      (* 373 K: 0.25 ms *)
   ].
 
   (* RFNA/Furfuryl delay table with Ea=48kJ/mol *)
   Definition RFNA_furfuryl_delay_table_v2 : list ignition_point := [
-    mkIgnitionPt 27300 65000;   (* 273 K: 65 ms *)
-    mkIgnitionPt 29800 10000;   (* 298 K: 10 ms *)
-    mkIgnitionPt 32300 2500;    (* 323 K: 2.5 ms *)
-    mkIgnitionPt 37300 350      (* 373 K: 0.35 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 27300) (Units.mkTime_us 65000);   (* 273 K: 65 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 29800) (Units.mkTime_us 10000);   (* 298 K: 10 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 32300) (Units.mkTime_us 2500);    (* 323 K: 2.5 ms *)
+    mkIgnitionPt (Units.mkTemp_cK 37300) (Units.mkTime_us 350)      (* 373 K: 0.35 ms *)
   ].
 
   (* ================================================================== *)
@@ -4547,21 +4783,21 @@ Module Hypergolic.
     | Some d => d < 50000
     | None => False
     end.
-  Proof. simpl. lia. Qed.
+  Proof. unfold lookup_delay, RFNA_UDMH_delay_table_v2, ignition_temp_cK, delay_us. simpl. lia. Qed.
 
   Lemma RFNA_aniline_hypergolic_298K :
     match lookup_delay RFNA_aniline_delay_table_v2 29800 with
     | Some d => d < 50000
     | None => False
     end.
-  Proof. simpl. lia. Qed.
+  Proof. unfold lookup_delay, RFNA_aniline_delay_table_v2, ignition_temp_cK, delay_us. simpl. lia. Qed.
 
   Lemma RFNA_furfuryl_hypergolic_298K :
     match lookup_delay RFNA_furfuryl_delay_table_v2 29800 with
     | Some d => d < 50000
     | None => False
     end.
-  Proof. simpl. lia. Qed.
+  Proof. unfold lookup_delay, RFNA_furfuryl_delay_table_v2, ignition_temp_cK, delay_us. simpl. lia. Qed.
 
   (* Temperature dependence: delay decreases with increasing temperature *)
   Lemma RFNA_UDMH_delay_temp_dependence :
@@ -4569,7 +4805,11 @@ Module Hypergolic.
     lookup_delay RFNA_UDMH_delay_table_v2 32300 = Some d1 ->
     lookup_delay RFNA_UDMH_delay_table_v2 29800 = Some d2 ->
     d1 < d2.
-  Proof. intros d1 d2 H1 H2. simpl in *. injection H1. injection H2. intros. subst. lia. Qed.
+  Proof.
+    intros d1 d2 H1 H2.
+    unfold lookup_delay, RFNA_UDMH_delay_table_v2, ignition_temp_cK, delay_us in *.
+    simpl in *. injection H1. injection H2. intros. subst. lia.
+  Qed.
 
   (* Arrhenius ratio verification: τ₁/τ₂ ≈ exp((Ea/R)(1/T₁ - 1/T₂)) *)
   (* For Ea=50kJ/mol, 298K→323K: ratio ≈ 4.5 *)
@@ -4623,9 +4863,12 @@ Module Hypergolic.
   Record elementary_reaction := mkElemRxn {
     er_name : nat;
     er_A_per_s : Z;
-    er_Ea_J_mol : Z;
-    er_dH_J_mol : Z
+    er_Ea : Units.ActivationEnergy_J_mol;
+    er_dH : Units.Energy_J
   }.
+
+  Definition er_Ea_J_mol (rxn : elementary_reaction) : Z := Units.Ea_J_mol_val (er_Ea rxn).
+  Definition er_dH_J_mol (rxn : elementary_reaction) : Z := Units.energy_J_val (er_dH rxn).
 
   Definition arrhenius_rate_x1000 (rxn : elementary_reaction) (T_K : Z) : Z :=
     let ln_k := Numerics.ln_x1000 (er_A_per_s rxn) -
@@ -4633,19 +4876,19 @@ Module Hypergolic.
     Numerics.exp_simple_x1000 ln_k.
 
   Definition proton_transfer : elementary_reaction :=
-    mkElemRxn 1 (10^13) 50000 (-50000).
+    mkElemRxn 1 (10^13) (Units.mkEa_J_mol 50000) (Units.mkEnergy_J (-50000)).
 
   Definition nitrosation : elementary_reaction :=
-    mkElemRxn 2 (10^11) 80000 (-30000).
+    mkElemRxn 2 (10^11) (Units.mkEa_J_mol 80000) (Units.mkEnergy_J (-30000)).
 
   Definition triazene_decomp : elementary_reaction :=
-    mkElemRxn 3 (10^14) 120000 150000.
+    mkElemRxn 3 (10^14) (Units.mkEa_J_mol 120000) (Units.mkEnergy_J 150000).
 
   Definition OH_abstraction : elementary_reaction :=
-    mkElemRxn 4 (10^12) 20000 (-80000).
+    mkElemRxn 4 (10^12) (Units.mkEa_J_mol 20000) (Units.mkEnergy_J (-80000)).
 
   Definition NO2_attack : elementary_reaction :=
-    mkElemRxn 5 (10^11) 15000 (-200000).
+    mkElemRxn 5 (10^11) (Units.mkEa_J_mol 15000) (Units.mkEnergy_J (-200000)).
 
   Definition RFNA_UDMH_elementary : list elementary_reaction := [
     proton_transfer;
@@ -4699,15 +4942,20 @@ Module DropletCombustion.
 
   (* Physical parameters for RFNA/UDMH spray *)
   Record droplet_params := mkDropletParams {
-    K_um2_per_ms : Z;       (* Burning rate constant in μm²/ms × 1000 *)
-    B_x1000 : Z;            (* Spalding number × 1000 *)
-    rho_liquid_kg_m3 : Z;   (* Liquid density *)
-    Hv_J_kg : Z             (* Heat of vaporization *)
+    dp_K_x1000 : Z;         (* Burning rate constant in μm²/ms × 1000 *)
+    dp_B : Units.Ratio_x1000;   (* Spalding number × 1000 *)
+    dp_rho_liquid : Units.Density_kg_m3;
+    dp_Hv_J_kg : Z          (* Heat of vaporization J/kg *)
   }.
+
+  Definition K_um2_per_ms (p : droplet_params) : Z := dp_K_x1000 p.
+  Definition B_x1000 (p : droplet_params) : Z := Units.ratio_x1000_val (dp_B p).
+  Definition rho_liquid_kg_m3 (p : droplet_params) : Z := Units.density_kg_m3_val (dp_rho_liquid p).
+  Definition Hv_J_kg (p : droplet_params) : Z := dp_Hv_J_kg p.
 
   (* RFNA/UDMH spray parameters verified against Mathematica *)
   Definition RFNA_UDMH_droplet_params : droplet_params :=
-    mkDropletParams 446540 8325 1000 400000.
+    mkDropletParams 446540 (Units.mkRatio_x1000 8325) (Units.mkDensity_kg_m3 1000) 400000.
 
   (* Compute droplet diameter squared at time t *)
   (* Input: d0_um = initial diameter in μm, t_us = time in μs *)
@@ -4847,13 +5095,17 @@ Module DropletReactionCoupling.
   Import DropletCombustion.
 
   Record spray_state := mkSprayState {
-    droplet_diameter_um : Z;
-    elapsed_time_us : Z;
-    vaporized_fraction_x1000 : Z
+    ss_diameter : Units.Length_um;
+    ss_elapsed : Units.Time_us;
+    ss_vaporized : Units.Ratio_x1000
   }.
 
+  Definition droplet_diameter_um (s : spray_state) : Z := Units.length_um_val (ss_diameter s).
+  Definition elapsed_time_us (s : spray_state) : Z := Units.time_us_val (ss_elapsed s).
+  Definition vaporized_fraction_x1000 (s : spray_state) : Z := Units.ratio_x1000_val (ss_vaporized s).
+
   Definition initial_spray (d0_um : Z) : spray_state :=
-    mkSprayState d0_um 0 0.
+    mkSprayState (Units.mkLength_um d0_um) (Units.mkTime_us 0) (Units.mkRatio_x1000 0).
 
   Definition vaporized_fraction (params : droplet_params) (d0_um t_us : Z) : Z :=
     let d0_sq := d0_um * d0_um in
@@ -4865,7 +5117,7 @@ Module DropletReactionCoupling.
     let new_t := elapsed_time_us st + dt_us in
     let d0 := droplet_diameter_um st in
     let new_frac := vaporized_fraction params d0 new_t in
-    mkSprayState d0 new_t new_frac.
+    mkSprayState (ss_diameter st) (Units.mkTime_us new_t) (Units.mkRatio_x1000 new_frac).
 
   Definition is_fully_vaporized (st : spray_state) : bool :=
     vaporized_fraction_x1000 st >=? 990.
@@ -4885,13 +5137,17 @@ Module DropletReactionCoupling.
     fuel_available_fraction st.
 
   Record coupled_state := mkCoupledState {
-    spray : spray_state;
-    reaction_progress_x1000 : Z;
-    chamber_temp_cK : Z
+    cs_spray : spray_state;
+    cs_progress : Units.Ratio_x1000;
+    cs_temp : Units.Temp_cK
   }.
 
+  Definition spray (c : coupled_state) : spray_state := cs_spray c.
+  Definition reaction_progress_x1000 (c : coupled_state) : Z := Units.ratio_x1000_val (cs_progress c).
+  Definition chamber_temp_cK (c : coupled_state) : Z := Units.temp_cK_val (cs_temp c).
+
   Definition initial_coupled_state (d0_um T0_cK : Z) : coupled_state :=
-    mkCoupledState (initial_spray d0_um) 0 T0_cK.
+    mkCoupledState (initial_spray d0_um) (Units.mkRatio_x1000 0) (Units.mkTemp_cK T0_cK).
 
   Definition ignition_delay_with_vaporization (params : droplet_params) (d0_um arrhenius_delay_us : Z) : Z :=
     let vap_time := droplet_lifetime_us params d0_um in
@@ -4946,26 +5202,29 @@ Module DissociationEquilibrium.
   (* Reference table for degree of dissociation alpha (× 1000) *)
   (* Computed by Mathematica solving Kp = alpha * sqrt(alpha/2P) / (1-alpha) *)
   Record alpha_point := mkAlphaPt {
-    ap_T_K : Z;
-    ap_alpha_x1000 : Z
+    alp_T : Units.Temp_K;
+    alp_alpha : Units.Ratio_x1000
   }.
+
+  Definition ap_T_K (p : alpha_point) : Z := Units.temp_K_val (alp_T p).
+  Definition ap_alpha_x1000 (p : alpha_point) : Z := Units.ratio_x1000_val (alp_alpha p).
 
   (* CO2 dissociation at P = 1 atm *)
   Definition CO2_alpha_table_1atm : list alpha_point := [
-    mkAlphaPt 2000 10;
-    mkAlphaPt 2500 139;
-    mkAlphaPt 3000 463;
-    mkAlphaPt 3500 771;
-    mkAlphaPt 4000 913
+    mkAlphaPt (Units.mkTemp_K 2000) (Units.mkRatio_x1000 10);
+    mkAlphaPt (Units.mkTemp_K 2500) (Units.mkRatio_x1000 139);
+    mkAlphaPt (Units.mkTemp_K 3000) (Units.mkRatio_x1000 463);
+    mkAlphaPt (Units.mkTemp_K 3500) (Units.mkRatio_x1000 771);
+    mkAlphaPt (Units.mkTemp_K 4000) (Units.mkRatio_x1000 913)
   ].
 
   (* H2O dissociation at P = 1 atm *)
   Definition H2O_alpha_table_1atm : list alpha_point := [
-    mkAlphaPt 2000 1;
-    mkAlphaPt 2500 18;
-    mkAlphaPt 3000 64;
-    mkAlphaPt 3500 150;
-    mkAlphaPt 4000 272
+    mkAlphaPt (Units.mkTemp_K 2000) (Units.mkRatio_x1000 1);
+    mkAlphaPt (Units.mkTemp_K 2500) (Units.mkRatio_x1000 18);
+    mkAlphaPt (Units.mkTemp_K 3000) (Units.mkRatio_x1000 64);
+    mkAlphaPt (Units.mkTemp_K 3500) (Units.mkRatio_x1000 150);
+    mkAlphaPt (Units.mkTemp_K 4000) (Units.mkRatio_x1000 272)
   ].
 
   (* Linear interpolation for alpha *)
